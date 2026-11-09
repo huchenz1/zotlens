@@ -1,0 +1,511 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ZotLens · 本地文献助手</title>
+<script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<style>
+:root{
+  --bg:#f6f7f9; --panel:#fff; --line:#e6e8ec; --line2:#d5d9e0; --text:#1d2433; --muted:#667085; --faint:#98a2b3;
+  --accent:#3b5bdb; --accent-soft:#edf2ff; --accent-line:#bac8ff; --ok:#2f9e44; --warn:#e67700; --mark:#fff3bf;
+  --radius:12px; --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:14px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC","Segoe UI",Roboto,sans-serif}
+button{font:inherit;cursor:pointer}
+.app{display:grid;grid-template-columns:248px minmax(0,1fr) 440px;height:100vh}
+/* sidebar */
+.side{border-right:1px solid var(--line);background:#fbfbfc;display:flex;flex-direction:column;padding:16px 14px;gap:16px;overflow:auto}
+.brand{display:flex;align-items:center;gap:10px;font-weight:600;font-size:16px}
+.logo{width:30px;height:30px;border-radius:8px;background:var(--accent);display:grid;place-items:center;color:#fff;font-weight:700;font-size:15px}
+.brand small{display:block;font-weight:400;color:var(--muted);font-size:12px;margin-top:-2px}
+.newchat{border:1px solid var(--line2);background:#fff;border-radius:10px;padding:8px 12px;text-align:left;color:var(--text)}
+.newchat:hover{border-color:var(--accent-line);background:var(--accent-soft)}
+.sec h4{margin:0 0 6px;font-size:12px;color:var(--muted);font-weight:500;letter-spacing:.02em}
+.stat{display:flex;justify-content:space-between;font-size:13px;padding:2px 0;color:var(--text)}
+.stat span:last-child{color:var(--muted)}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;background:var(--faint);vertical-align:middle}
+.dot.on{background:var(--ok)} .dot.off{background:#e03131}
+.bar{height:5px;background:var(--line);border-radius:3px;overflow:hidden;margin-top:4px}
+.bar i{display:block;height:100%;background:var(--accent)}
+.coll{display:flex;justify-content:space-between;padding:5px 8px;border-radius:8px;font-size:13px;cursor:pointer;color:var(--text)}
+.coll:hover{background:var(--accent-soft)} .coll.active{background:var(--accent-soft);color:var(--accent);font-weight:500}
+.coll span:last-child{color:var(--faint)}
+.skill{display:block;width:100%;text-align:left;border:1px solid var(--line);background:#fff;border-radius:9px;padding:7px 10px;margin-bottom:6px;font-size:13px;color:var(--text)}
+.skill:hover{border-color:var(--accent-line)} .skill em{display:block;font-style:normal;color:var(--muted);font-size:12px}
+/* chat */
+.main{display:flex;flex-direction:column;min-width:0}
+.topbar{height:52px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 22px;background:var(--panel)}
+.topbar .title{font-weight:500}
+.mode{display:flex;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:2px}
+.mode button{border:0;background:transparent;padding:4px 12px;border-radius:7px;color:var(--muted);font-size:13px}
+.mode button.on{background:#fff;color:var(--text);box-shadow:0 0 0 1px var(--line)}
+.msgs{flex:1;overflow:auto;padding:24px 0}
+.wrap{max-width:820px;margin:0 auto;padding:0 28px}
+.msg{margin-bottom:22px}
+.msg.user .bubble{background:var(--accent);color:#fff;border-radius:14px 14px 4px 14px;padding:10px 14px;display:inline-block;max-width:85%;white-space:pre-wrap}
+.msg.user{text-align:right}
+.msg.bot .who{font-size:12px;color:var(--muted);margin-bottom:4px}
+.answer{overflow-wrap:anywhere}
+.answer p{margin:.4em 0 .7em} .answer ul,.answer ol{padding-left:1.4em}
+.answer table{border-collapse:collapse;margin:10px 0;font-size:13px;width:100%}
+.answer th,.answer td{border:1px solid var(--line2);padding:6px 8px;vertical-align:top;text-align:left}
+.answer th{background:#f3f5f8;font-weight:500}
+.answer code{font-family:var(--mono);font-size:12.5px;background:#f1f3f5;padding:1px 5px;border-radius:5px}
+.answer pre{background:#f6f8fa;border:1px solid var(--line);padding:10px;border-radius:9px;overflow:auto}
+.answer pre code{background:none;padding:0}
+.cite{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:18px;padding:0 5px;margin:0 1px;border-radius:9px;
+  border:1px solid var(--accent-line);background:var(--accent-soft);color:var(--accent);font-size:11.5px;font-weight:600;vertical-align:1px;line-height:1}
+.cite:hover{background:var(--accent);color:#fff}
+.steps{margin:2px 0 8px;display:flex;flex-direction:column;gap:6px}
+.step{border:1px solid var(--line);background:#fff;border-radius:10px;padding:7px 11px;font-size:12.5px;color:var(--muted);display:flex;gap:8px;align-items:flex-start}
+.step b{color:var(--text);font-weight:500}
+.step .q{font-family:var(--mono);font-size:12px;color:#495057}
+.step .ico{width:16px;height:16px;flex:none;margin-top:2px;border-radius:50%;border:2px solid var(--accent-line);border-top-color:var(--accent);animation:spin .8s linear infinite}
+.step.done .ico{animation:none;border:0;background:var(--ok);mask:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M6.5 11.2 3.3 8l-1 1 4.2 4.2L14 5.7l-1-1z"/></svg>') center/14px no-repeat;-webkit-mask:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M6.5 11.2 3.3 8l-1 1 4.2 4.2L14 5.7l-1-1z"/></svg>') center/14px no-repeat}
+.step .refs{margin-left:auto;white-space:nowrap}
+@keyframes spin{to{transform:rotate(360deg)}}
+.thinking{font-size:12px;color:var(--faint);border-left:2px solid var(--line2);padding-left:10px;margin:4px 0 8px;max-height:110px;overflow:auto;white-space:pre-wrap}
+.err{color:#c92a2a;background:#fff5f5;border:1px solid #ffc9c9;border-radius:9px;padding:8px 12px;font-size:13px}
+.meta{font-size:11.5px;color:var(--faint);margin-top:6px}
+.empty{text-align:center;color:var(--muted);padding-top:9vh}
+.empty h2{font-size:22px;color:var(--text);font-weight:600;margin:0 0 6px}
+.sugg{display:grid;grid-template-columns:1fr 1fr;gap:10px;max-width:640px;margin:24px auto 0;text-align:left}
+.sugg button{border:1px solid var(--line);background:#fff;border-radius:12px;padding:11px 13px;color:var(--text);font-size:13px}
+.sugg button:hover{border-color:var(--accent-line);background:var(--accent-soft)}
+.sugg em{display:block;font-style:normal;color:var(--faint);font-size:11.5px;margin-bottom:2px}
+.composer{border-top:1px solid var(--line);background:var(--panel);padding:14px 0 18px}
+.box{display:flex;gap:10px;align-items:flex-end;border:1px solid var(--line2);border-radius:14px;padding:8px 8px 8px 14px;background:#fff}
+.box:focus-within{border-color:var(--accent-line);box-shadow:0 0 0 3px var(--accent-soft)}
+.box textarea{flex:1;border:0;outline:0;resize:none;font:inherit;max-height:180px;min-height:24px;padding:4px 0}
+.send{border:0;background:var(--accent);color:#fff;border-radius:10px;padding:8px 16px}
+.send:disabled{opacity:.45;cursor:default}
+.hint{font-size:11.5px;color:var(--faint);margin-top:6px;display:flex;gap:10px;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--accent-line);background:var(--accent-soft);color:var(--accent);border-radius:20px;padding:0 8px;font-size:11.5px}
+.chip button{border:0;background:none;color:inherit;padding:0}
+/* sources */
+.src{border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-width:0}
+.src-head{height:52px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 16px}
+.src-head .t{font-weight:500} .src-head .t span{color:var(--faint);font-weight:400;margin-left:6px}
+.tabs{display:flex;gap:2px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:2px}
+.tabs button{border:0;background:none;padding:2px 10px;border-radius:6px;font-size:12px;color:var(--muted)}
+.tabs button.on{background:#fff;color:var(--text);box-shadow:0 0 0 1px var(--line)}
+.cards{flex:1;overflow:auto;padding:12px 14px 80px}
+.src-empty{color:var(--faint);text-align:center;margin-top:30%;font-size:13px;padding:0 30px}
+.card{border:1px solid var(--line);border-radius:var(--radius);padding:12px 13px;margin-bottom:10px;background:#fff;transition:border-color .2s, box-shadow .2s}
+.card.flash{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.card.old{opacity:.72}
+.card .hd{display:flex;gap:10px;align-items:flex-start}
+.num{flex:none;min-width:24px;height:24px;border-radius:7px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-weight:600;font-size:12.5px;border:1px solid var(--accent-line)}
+.card.cited .num{background:var(--accent);color:#fff;border-color:var(--accent)}
+.ttl{font-weight:600;font-size:13.5px;line-height:1.4}
+.au{font-size:12px;color:var(--muted);margin-top:2px}
+.tags{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
+.tag{font-size:11px;border-radius:5px;padding:0 6px;background:#f1f3f5;color:#495057}
+.tag.c{background:#ebfbee;color:#2b8a3e} .tag.k{background:#fff4e6;color:#d9480f}
+.rel{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--muted);margin-top:8px}
+.rel .bar{flex:1;margin:0}
+.ev{margin-top:9px;border-left:3px solid var(--accent-line);background:#fafbfc;border-radius:0 8px 8px 0;padding:7px 10px;font-size:12.5px;line-height:1.55;color:#343a40}
+.ev .lab{font-size:11px;color:var(--accent);font-weight:600;margin-bottom:2px;display:flex;justify-content:space-between}
+.ev .lab span{color:var(--faint);font-weight:400}
+.ev mark{background:var(--mark);padding:0 1px;border-radius:2px}
+.ev .more{border:0;background:none;color:var(--accent);padding:0;font-size:12px}
+.acts{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;align-items:center}
+.acts button{border:1px solid var(--line2);background:#fff;border-radius:7px;padding:3px 9px;font-size:12px;color:var(--text)}
+.acts button:hover{border-color:var(--accent-line);color:var(--accent)}
+.acts button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.acts label{margin-left:auto;font-size:12px;color:var(--muted);display:flex;gap:4px;align-items:center;cursor:pointer}
+.selbar{position:sticky;bottom:0;margin:0 -14px;padding:10px 14px;background:rgba(255,255,255,.96);border-top:1px solid var(--line);display:none;gap:8px;align-items:center}
+.selbar.show{display:flex}
+.selbar span{font-size:12.5px;color:var(--muted);margin-right:auto}
+.selbar button{border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:8px;padding:4px 10px;font-size:12.5px}
+.selbar button.ghost{background:#fff;color:var(--accent)}
+/* modal */
+.modal{position:fixed;inset:0;background:rgba(20,24,33,.45);display:none;align-items:center;justify-content:center;z-index:50}
+.modal.show{display:flex}
+.modal .inner{width:min(1100px,92vw);height:92vh;background:#fff;border-radius:14px;overflow:hidden;display:flex;flex-direction:column}
+.modal .mh{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--line);gap:10px}
+.modal .mh b{font-weight:500;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.modal .mh button{border:1px solid var(--line2);background:#fff;border-radius:7px;padding:3px 10px}
+.modal iframe{flex:1;border:0}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#212529;color:#fff;padding:8px 14px;border-radius:9px;font-size:13px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:60}
+.toast.show{opacity:.95}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand"><div class="logo">Z</div><div>ZotLens<small>本地 Zotero 文献助手</small></div></div>
+    <button class="newchat" onclick="newChat()">+ 新对话</button>
+    <div class="sec">
+      <h4>文献库</h4>
+      <div class="stat"><span><i class="dot" id="zdot"></i>Zotero</span><span id="zstate">检测中</span></div>
+      <div class="stat"><span>论文</span><span id="npapers">-</span></div>
+      <div class="stat"><span>全文段落索引</span><span id="ncov">-</span></div>
+      <div class="bar"><i id="covbar" style="width:0"></i></div>
+      <div class="stat" style="margin-top:6px"><span>LLM</span><span id="llm">-</span></div>
+      <div class="stat"><span>向量 / 重排</span><span id="emb">-</span></div>
+      <div id="stale" style="display:none;margin-top:8px;font-size:12px;line-height:1.5;color:#8a5b00;background:#fff9db;border:1px solid #ffe8a1;border-radius:8px;padding:6px 8px"></div>
+    </div>
+    <div class="sec">
+      <h4>分类（点击限定检索范围）</h4>
+      <div id="colls"></div>
+    </div>
+    <div class="sec">
+      <h4>技能</h4>
+      <button class="skill" onclick="useSkill('related')">撰写 Related Work<em>按主题归纳并逐句引用</em></button>
+      <button class="skill" onclick="useSkill('compare')">对比多篇论文<em>方法 / 设置 / 结果 / 局限</em></button>
+      <button class="skill" onclick="useSkill('deep')">精读一篇论文<em>带页码的证据</em></button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div class="title" id="convTitle">新对话</div>
+      <div class="mode"><button class="on" id="mChat" onclick="setMode('chat')">对话</button><button id="mSearch" onclick="setMode('search')">仅检索</button></div>
+    </div>
+    <div class="msgs" id="msgs"><div class="wrap" id="thread"></div></div>
+    <div class="composer"><div class="wrap">
+      <div class="box">
+        <textarea id="inp" rows="1" placeholder="问任何问题；涉及文献时会自动检索你的 Zotero 库…"></textarea>
+        <button class="send" id="sendBtn" onclick="send()">发送</button>
+      </div>
+      <div class="hint" id="hint"><span>Enter 发送 · Shift+Enter 换行</span></div>
+    </div></div>
+  </main>
+
+  <aside class="src">
+    <div class="src-head">
+      <div class="t">文献来源<span id="srcCount"></span></div>
+      <div class="tabs"><button class="on" id="tTurn" onclick="setTab('turn')">本轮</button><button id="tAll" onclick="setTab('all')">全部</button></div>
+    </div>
+    <div class="cards" id="cards">
+      <div class="src-empty" id="srcEmpty">对话中检索到的论文会显示在这里：<br>标题、作者、所在分类、相关度、原文证据与页码，<br>并可一键在 Zotero 中打开。</div>
+      <div class="selbar" id="selbar"><span id="selInfo"></span>
+        <button class="ghost" onclick="clearSel()">清空</button>
+        <button onclick="actOnSel('compare')">对比</button>
+        <button onclick="actOnSel('related')">写综述</button>
+        <button onclick="actOnSel('ask')">基于所选提问</button>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<div class="modal" id="modal" onclick="if(event.target===this)closeModal()">
+  <div class="inner"><div class="mh"><b id="mTitle"></b><div style="display:flex;gap:6px"><button id="mZotero">在 Zotero 中打开</button><button onclick="closeModal()">关闭</button></div></div>
+  <iframe id="mFrame"></iframe></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const S = {sid: null, mode: 'chat', tab: 'turn', turn: 0, busy: false, collection: null,
+           sources: new Map(), cited: new Set(), selected: new Set()};
+const STOP = new Set('the and for with from that this which what when where into onto over under between their there these those using based about does how why are was were been being have has had can could would should paper papers method model models learning'.split(' '));
+
+function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('show');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('show'),1800)}
+function esc(s){return (s??'').toString().replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+
+// ---------------- status
+async function loadStatus(){
+  try{
+    const r = await (await fetch('/api/status')).json();
+    $('#zdot').className = 'dot ' + (r.zotero_running?'on':'off');
+    $('#zstate').textContent = r.zotero_running ? '运行中' : '未运行';
+    $('#npapers').textContent = r.index.papers_loaded;
+    const tot = r.index.chunks||0, done = r.index.chunks_embedded_loaded||0;
+    $('#ncov').textContent = tot ? `${Math.round(100*done/tot)}% · ${(tot/1000).toFixed(1)}k` : '-';
+    $('#covbar').style.width = tot ? (100*done/tot)+'%' : 0;
+    $('#llm').textContent = r.llm.backend==='local' ? '本地模型' : r.llm.model;
+    const ix = r.index||{};
+    $('#emb').textContent = (ix.embed_backend?.backend||'local') + ' / ' + (ix.rerank_backend||'local');
+    const warn = [];
+    if(ix.warning) warn.push(ix.warning);
+    if(r.stale && r.stale.changed) warn.push(`Zotero 库在索引后有改动（库 v${r.stale.zotero_version} / 索引 v${r.stale.index_version ?? '?'}，索引时间 ${r.stale.index_updated||'?'}），运行 <code>./run.sh index</code> 更新`);
+    const sb = $('#stale');
+    if(warn.length){ sb.style.display='block'; sb.innerHTML = warn.join('<br>'); } else sb.style.display='none';
+    if(!$('#colls').dataset.ok){
+      $('#colls').dataset.ok=1;
+      $('#colls').innerHTML = `<div class="coll active" data-c=""><span>全部</span><span>${r.index.papers_loaded}</span></div>` +
+        r.collections.map(c=>`<div class="coll" data-c="${esc(c.name)}"><span>${esc(c.name)}</span><span>${c.count}</span></div>`).join('');
+      document.querySelectorAll('.coll').forEach(el=>el.onclick=()=>setCollection(el.dataset.c||null));
+    }
+  }catch(e){}
+}
+function setCollection(c){
+  S.collection=c;
+  document.querySelectorAll('.coll').forEach(el=>el.classList.toggle('active',(el.dataset.c||null)===c));
+  renderHint();
+}
+function renderHint(){
+  let h = '<span>Enter 发送 · Shift+Enter 换行</span>';
+  if(S.collection) h += `<span class="chip">范围：${esc(S.collection)} <button onclick="setCollection(null)">×</button></span>`;
+  if(S.selected.size) h += `<span class="chip">已选 ${[...S.selected].map(n=>'['+n+']').join('')} <button onclick="clearSel()">×</button></span>`;
+  $('#hint').innerHTML = h;
+}
+
+// ---------------- modes / tabs
+function setMode(m){S.mode=m;$('#mChat').classList.toggle('on',m==='chat');$('#mSearch').classList.toggle('on',m==='search');
+  $('#inp').placeholder = m==='chat' ? '问任何问题；涉及文献时会自动检索你的 Zotero 库…' : '输入检索问题（不调用 LLM，直接混合检索 + 重排）';}
+function setTab(t){S.tab=t;$('#tTurn').classList.toggle('on',t==='turn');$('#tAll').classList.toggle('on',t==='all');renderCards();}
+
+// ---------------- chat thread
+function emptyState(){
+  $('#thread').innerHTML = `<div class="empty"><h2>问问你的文献库</h2><div>基于 ${$('#npapers').textContent||''} 篇本地 Zotero 论文的全文 · 混合检索 + 重排 · 引用可溯源到页码</div>
+  <div class="sugg">
+   <button onclick="ask(this)"><em>检索</em>掩码扩散模型并行解码为什么会降低生成质量？有哪些改进方法？</button>
+   <button onclick="ask(this)"><em>检索</em>SFT 里有哪些通过 token 加权来减少遗忘的方法？</button>
+   <button onclick="ask(this)"><em>对比</em>对比一下我库里 on-policy distillation 相关的几篇论文</button>
+   <button onclick="ask(this)"><em>元数据</em>我最近一周加入了哪些论文？</button>
+  </div></div>`;
+}
+function ask(b){ $('#inp').value = b.childNodes[1].textContent; send(); }
+function addUser(t){ clearEmpty(); const d=document.createElement('div'); d.className='msg user'; d.innerHTML=`<div class="bubble">${esc(t)}</div>`; $('#thread').appendChild(d); scroll(); }
+function clearEmpty(){ const e=$('#thread .empty'); if(e) e.remove(); }
+function addBot(){
+  const d=document.createElement('div'); d.className='msg bot';
+  d.innerHTML=`<div class="who">ZotLens</div><div class="steps"></div><div class="thinking" style="display:none"></div><div class="answer"></div><div class="meta"></div>`;
+  $('#thread').appendChild(d); scroll(); return d;
+}
+function scroll(){ const m=$('#msgs'); if(m.scrollHeight - m.scrollTop - m.clientHeight < 260) m.scrollTop = m.scrollHeight; }
+
+function renderMath(md){
+  // protect math from markdown, render with KaTeX afterwards
+  const store = [];
+  const put = (tex, display) => { store.push([tex, display]); return `@@MATH${store.length-1}@@`; };
+  md = md.replace(/\$\$([\s\S]+?)\$\$/g, (_,t)=>put(t,true))
+         .replace(/\\\[([\s\S]+?)\\\]/g, (_,t)=>put(t,true))
+         .replace(/\\\(([\s\S]+?)\\\)/g, (_,t)=>put(t,false))
+         .replace(/(^|[^\\$])\$([^\s$](?:[^$\n]*?[^\s$])?)\$(?!\d)/g, (_,pre,t)=>pre+put(t,false));
+  return [md, store];
+}
+function renderAnswer(el, md){
+  const [safe, store] = renderMath(md || '');
+  let html = DOMPurify.sanitize(marked.parse(safe));
+  html = html.replace(/@@MATH(\d+)@@/g, (_,i)=>{ const [t,d]=store[+i];
+    try{ return window.katex ? katex.renderToString(t,{displayMode:d,throwOnError:false}) : esc(t); }catch(e){ return esc(t); } });
+  html = html.replace(/\[(\d{1,3})\]/g, (m,n)=> S.sources.has(+n) ? `<button class="cite" data-n="${n}" title="${esc(S.sources.get(+n).title)}">${n}</button>` : m);
+  el.innerHTML = html;
+  el.querySelectorAll('.cite').forEach(b=>b.onclick=()=>focusCard(+b.dataset.n));
+}
+const TOOL_LABEL = {search_library:'检索文献库', read_paper:'阅读论文', find_papers:'按元数据查找', list_collections:'列出分类', load_skill:'加载技能'};
+function stepText(ev){
+  const a = ev.args||{};
+  if(ev.name==='search_library'){
+    let s = `<span class="q">${esc(a.query||'')}</span>`;
+    if(a.keywords?.length) s += ` <span style="color:var(--faint)">+ ${a.keywords.map(esc).join(' / ')}</span>`;
+    if(a.collection) s += ` · 分类 ${esc(a.collection)}`;
+    if(a.year_from||a.year_to) s += ` · ${a.year_from||''}–${a.year_to||''}`;
+    return s;
+  }
+  if(ev.name==='read_paper') return `[${esc(a.paper)}] <span class="q">${esc(a.question||'')}</span>`;
+  if(ev.name==='find_papers') return Object.entries(a).map(([k,v])=>`${k}=${esc(v)}`).join(' · ');
+  if(ev.name==='load_skill') return `<span class="q">${esc(a.name)}</span>`;
+  return '';
+}
+
+// ---------------- send
+async function send(){
+  const text = $('#inp').value.trim();
+  if(!text || S.busy) return;
+  $('#inp').value=''; autosize();
+  if(S.turn===0) $('#convTitle').textContent = text.slice(0,40);
+  addUser(text);
+  if(S.mode==='search') return directSearch(text);
+  S.busy=true; $('#sendBtn').disabled=true;
+  S.turn++; const turn=S.turn; S.cited=new Set();
+  const bot = addBot(); const ans = bot.querySelector('.answer'), steps=bot.querySelector('.steps'), think=bot.querySelector('.thinking');
+  let md='', raf=null, t0=performance.now();
+  const wd = setTimeout(()=>{ if(!ans.textContent && !bot.querySelector('.step.done'))
+      ans.innerHTML = '<div class="err">响应较慢，仍在等待模型（服务端有 300 秒上限）…</div>'; }, 120000);
+  const stepEls = {};
+  let msg = text;
+  if(S.collection) msg += `\n\n(Restrict library searches to the collection "${S.collection}".)`;
+  const attached = [...S.selected];
+  try{
+    const resp = await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({session_id:S.sid, message:msg, attached})});
+    const reader = resp.body.getReader(); const dec = new TextDecoder(); let buf='';
+    while(true){
+      const {value, done} = await reader.read(); if(done) break;
+      buf += dec.decode(value,{stream:true});
+      let i; while((i = buf.indexOf('\n\n'))>=0){
+        const line = buf.slice(0,i); buf = buf.slice(i+2);
+        if(!line.startsWith('data: ')) continue;
+        const ev = JSON.parse(line.slice(6));
+        if(ev.type==='session') S.sid = ev.session_id;
+        else if(ev.type==='token'){ md += ev.text; if(!raf) raf=requestAnimationFrame(()=>{raf=null;renderAnswer(ans,md);scroll();}); }
+        else if(ev.type==='thinking'){ think.style.display='block'; think.textContent += ev.text; think.scrollTop=think.scrollHeight; }
+        else if(ev.type==='tool'){
+          if(ev.state==='start'){
+            if(md.trim()){ // interstitial "let me search..." text belongs to the trace, not the answer
+              const n=document.createElement('div'); n.className='step done note'; n.style.border='0'; n.style.background='none'; n.style.padding='0 2px';
+              n.textContent = md.trim(); steps.appendChild(n); md=''; renderAnswer(ans,''); }
+            const s=document.createElement('div'); s.className='step';
+            s.innerHTML=`<div class="ico"></div><div><b>${TOOL_LABEL[ev.name]||ev.name}</b> ${stepText(ev)}</div><span class="refs"></span>`;
+            steps.appendChild(s); stepEls[ev.id]=s; scroll();
+          } else {
+            const s=stepEls[ev.id]; if(s){ s.classList.add('done');
+              s.querySelector('.refs').innerHTML = esc(ev.summary||'') + (ev.refs?.length? ' ' + ev.refs.slice(0,8).map(n=>`<button class="cite" data-n="${n}">${n}</button>`).join(''):'');
+              s.querySelectorAll('.cite').forEach(b=>b.onclick=()=>focusCard(+b.dataset.n)); }
+          }
+        }
+        else if(ev.type==='sources'){ ev.cards.forEach(c=>{ c.last_turn = turn; S.sources.set(c.n, c); }); renderCards(); }
+        else if(ev.type==='done'){
+          renderAnswer(ans,md); (ev.cited||[]).forEach(n=>S.cited.add(n)); renderCards();
+          if(think.textContent) think.style.display='none';
+          const secs = ((performance.now()-t0)/1000).toFixed(1);
+          bot.querySelector('.meta').textContent = `${secs}s · ${ev.model||''}` + (ev.cited?.length? ` · 引用 ${ev.cited.length} 篇`:'');
+        }
+        else if(ev.type==='error'){ ans.insertAdjacentHTML('beforeend', `<div class="err">${esc(ev.text)}</div>`); }
+      }
+    }
+  }catch(e){ ans.insertAdjacentHTML('beforeend', `<div class="err">连接失败：${esc(e.message)}</div>`); }
+  clearTimeout(wd);
+  S.busy=false; $('#sendBtn').disabled=false; clearSel(); loadStatus();
+}
+async function directSearch(text){
+  S.busy=true; $('#sendBtn').disabled=true; S.turn++; const turn=S.turn; S.cited=new Set();
+  const bot = addBot(); const steps = bot.querySelector('.steps');
+  const st=document.createElement('div'); st.className='step'; st.innerHTML=`<div class="ico"></div><div><b>混合检索</b> <span class="q">${esc(text)}</span></div><span class="refs"></span>`; steps.appendChild(st);
+  try{
+    const r = await (await fetch('/api/search',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({query:text, collection:S.collection, top_k:8, session_id:S.sid})})).json();
+    S.sid = r.session_id;
+    r.cards.forEach(c=>{ c.last_turn = turn; S.sources.set(c.n, c); });
+    st.classList.add('done');
+    st.querySelector('.refs').textContent = `${r.results.length} 篇 · 检索 ${r.timing.retrieve_s}s + 重排 ${r.timing.rerank_s}s`;
+    const list = r.cards.map(c=>`- [${c.n}] **${c.title}** (${c.year||'n.d.'}) — 相关度 ${Math.round(100*(c.relevance||0))}%`).join('\n');
+    renderAnswer(bot.querySelector('.answer'), list || '没有找到相关论文。');
+    renderCards();
+  }catch(e){ bot.querySelector('.answer').innerHTML = `<div class="err">${esc(e.message)}</div>`; }
+  S.busy=false; $('#sendBtn').disabled=false;
+}
+
+// ---------------- source cards
+function hlTerms(card){
+  const words = new Set();
+  (card.queries||[]).forEach(q=>q.toLowerCase().split(/[^a-z0-9\-]+/).forEach(w=>{ if(w.length>3 && !STOP.has(w)) words.add(w); }));
+  return [...words];
+}
+function highlight(text, terms){
+  let h = esc(text);
+  if(!terms.length) return h;
+  const re = new RegExp('\\b(' + terms.map(t=>t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|') + ')\\w*', 'gi');
+  return h.replace(re, '<mark>$&</mark>');
+}
+// window the snippet around the first query-term hit so the card shows the matching sentence, not the chunk head
+function clipAround(text, terms, n=55){
+  const w = text.split(/\s+/);
+  if(w.length <= n) return {short:text, long:false};
+  let hit = -1;
+  if(terms.length){
+    const re = new RegExp('\\b(' + terms.map(t=>t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|') + ')\\w*','i');
+    hit = w.findIndex(x=>re.test(x));
+  }
+  const start = hit > 12 ? Math.max(0, hit - 12) : 0;
+  const body = w.slice(start, start+n).join(' ');
+  return {short: (start>0?'… ':'') + body + (start+n < w.length ? ' …' : ''), long: true};
+}
+function cardHTML(c){
+  const au = (c.authors||[]).slice(0,4).join(', ') + ((c.authors||[]).length>4?' 等':'');
+  const rel = c.relevance!=null ? Math.round(100*c.relevance) : null;
+  const terms = hlTerms(c);
+  const ev = (c.evidence||[]).slice(0,2).map((e,i)=>{
+    if(!e.text) return '';
+    const lab = e.kind==='abstract' ? '摘要' : (e.page ? `原文 · 第 ${e.page} 页` : '原文段落');
+    const cl = clipAround(e.text, terms, 55);
+    const full = highlight(e.text, terms), short = highlight(cl.short, terms);
+    const long = cl.long;
+    return `<div class="ev"><div class="lab">${lab}${e.page?`<span><a href="#" onclick="previewPdf(${c.n},${e.page});return false" style="color:inherit">在 PDF 中查看</a></span>`:''}</div>
+      <div class="evt" data-full="${encodeURIComponent(full)}" data-short="${encodeURIComponent(short)}">${short}</div>
+      ${long?`<button class="more" onclick="toggleEv(this)">展开</button>`:''}</div>`;
+  }).join('');
+  const page = (c.evidence||[]).find(e=>e.page)?.page;
+  return `<div class="card ${S.cited.has(c.n)?'cited':''} ${c.last_turn!==S.turn?'old':''}" id="card-${c.n}">
+    <div class="hd"><div class="num">${c.n}</div><div style="min-width:0">
+      <div class="ttl">${esc(c.title)}</div>
+      <div class="au">${esc(au||'作者未知')} · ${esc(c.year||'n.d.')}${c.venue?` · <i>${esc(c.venue)}</i>`:''}</div>
+      <div class="tags">${(c.collections||[]).map(x=>`<span class="tag c">${esc(x)}</span>`).join('')}${c.arxiv?`<span class="tag">arXiv ${esc(c.arxiv)}</span>`:''}${S.cited.has(c.n)?'<span class="tag k">已在回答中引用</span>':''}</div>
+    </div></div>
+    ${rel!=null?`<div class="rel">相关度<div class="bar"><i style="width:${rel}%"></i></div>${rel}%</div>`:''}
+    ${ev}
+    <div class="acts">
+      <button class="primary" onclick="openZotero(${c.n})">在 Zotero 中打开${page?` (p.${page})`:''}</button>
+      ${c.has_pdf?`<button onclick="previewPdf(${c.n},${page||1})">预览 PDF</button>`:''}
+      <button onclick="copyBib('${c.key}')">BibTeX</button>
+      <button onclick="askAbout(${c.n})">追问</button>
+      <label><input type="checkbox" ${S.selected.has(c.n)?'checked':''} onchange="toggleSel(${c.n},this.checked)">选中</label>
+    </div></div>`;
+}
+function toggleEv(b){ const t=b.previousElementSibling; const open=b.textContent==='收起';
+  t.innerHTML = decodeURIComponent(open? t.dataset.short : t.dataset.full); b.textContent = open?'展开':'收起'; }
+function renderCards(){
+  let list = [...S.sources.values()];
+  if(S.tab==='turn') list = list.filter(c=>c.last_turn===S.turn);
+  list.sort((a,b)=> (S.cited.has(b.n)-S.cited.has(a.n)) || ((b.relevance??0)-(a.relevance??0)) || a.n-b.n);
+  $('#srcCount').textContent = S.sources.size ? `${list.length}${S.tab==='turn'?' / 共 '+S.sources.size:''}` : '';
+  const box=$('#cards'); const sel=$('#selbar');
+  box.querySelectorAll('.card').forEach(e=>e.remove());
+  $('#srcEmpty').style.display = list.length? 'none':'block';
+  sel.insertAdjacentHTML('beforebegin', list.map(cardHTML).join(''));
+  renderSel();
+}
+function focusCard(n){
+  if(S.tab==='turn' && S.sources.get(n)?.last_turn!==S.turn) setTab('all');
+  const el = $('#card-'+n); if(!el) return;
+  el.scrollIntoView({behavior:'smooth', block:'center'}); el.classList.add('flash'); setTimeout(()=>el.classList.remove('flash'),1600);
+}
+function toggleSel(n,on){ on? S.selected.add(n) : S.selected.delete(n); renderSel(); renderHint(); }
+function clearSel(){ S.selected.clear(); document.querySelectorAll('.card input[type=checkbox]').forEach(c=>c.checked=false); renderSel(); renderHint(); }
+function renderSel(){ const b=$('#selbar'); b.classList.toggle('show', S.selected.size>0); $('#selInfo').textContent = `已选 ${S.selected.size} 篇`; }
+function actOnSel(kind){
+  const refs=[...S.selected].sort((a,b)=>a-b).map(n=>'['+n+']').join('');
+  const t = {compare:`用 compare-papers 技能对比 ${refs} 这几篇论文`, related:`基于 ${refs} 写一段 related work`, ask:`关于 ${refs}：`}[kind];
+  $('#inp').value=t; $('#inp').focus(); if(kind!=='ask'){ setMode('chat'); send(); }
+}
+function askAbout(n){ S.selected.add(n); renderHint(); $('#inp').value=`[${n}] 这篇论文的核心方法和主要结论是什么？`; $('#inp').focus(); }
+function useSkill(k){
+  const t={related:'帮我写一段关于「 」的 related work（只用我库里的论文）', compare:'对比我库里关于「 」的代表性论文', deep:'精读论文「 」：动机、方法、实验和局限'}[k];
+  setMode('chat'); $('#inp').value=t; $('#inp').focus(); const p=t.indexOf('「 」')+1; $('#inp').setSelectionRange(p,p+1);
+}
+
+// ---------------- actions
+async function openZotero(n){
+  const c=S.sources.get(n); const url = c.links?.open_pdf || c.links?.select || `zotero://select/library/items/${c.key}`;
+  await fetch('/api/open',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})});
+  toast('已在 Zotero 中打开');
+}
+function previewPdf(n,page){
+  const c=S.sources.get(n); if(!c.pdf_key){ toast('该条目没有 PDF'); return; }
+  $('#mTitle').textContent = `[${n}] ${c.title}` + (page?` · 第 ${page} 页`:'');
+  $('#mFrame').src = `/api/pdf/${c.pdf_key}#page=${page||1}`;
+  $('#mZotero').onclick = ()=>{ fetch('/api/open',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:`zotero://open-pdf/library/items/${c.pdf_key}?page=${page||1}`})}); toast('已在 Zotero 中打开'); };
+  $('#modal').classList.add('show');
+}
+function closeModal(){ $('#modal').classList.remove('show'); $('#mFrame').src='about:blank'; }
+async function copyBib(key){
+  try{ const r=await (await fetch('/api/bibtex/'+key)).json(); await navigator.clipboard.writeText(r.bibtex); toast('BibTeX 已复制'); }
+  catch(e){ toast('获取 BibTeX 失败'); }
+}
+function newChat(){
+  if(S.sid) fetch('/api/reset/'+S.sid,{method:'POST'});
+  Object.assign(S,{sid:null,turn:0,sources:new Map(),cited:new Set(),selected:new Set()});
+  $('#convTitle').textContent='新对话'; emptyState(); renderCards(); renderHint();
+}
+
+// ---------------- input
+const inp=$('#inp');
+function autosize(){ inp.style.height='auto'; inp.style.height=Math.min(inp.scrollHeight,180)+'px'; }
+inp.addEventListener('input',autosize);
+inp.addEventListener('keydown',e=>{ if(e.key==='Enter' && !e.shiftKey && !e.isComposing){ e.preventDefault(); send(); } });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeModal(); });
+marked.setOptions({breaks:true, gfm:true});
+loadStatus().then(emptyState); setInterval(loadStatus, 15000);
+</script>
+</body>
+</html>

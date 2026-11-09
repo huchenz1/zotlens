@@ -1,0 +1,19 @@
+# secrets — never commit
+.env
+
+# generated index, logs and local backups (rebuild with ./run.sh index)
+data/
+*.npy
+*.sqlite
+*.sqlite-*
+
+# python
+__pycache__/
+*.py[cod]
+.venv
+.venv/
+venv/
+*.egg-info/
+
+# os / editor
+.DS_Store
