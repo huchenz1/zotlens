@@ -107,17 +107,28 @@ def _api_embed(texts: list[str]) -> np.ndarray:
 
 
 def _embed_batch(batch: list[str]) -> list[list[float]]:
+    """One request, with backoff. Providers rate-limit per token quota (HTTP 429), and a careless
+    retry budget kills a 20-minute index build at 90% — so back off generously and honour Retry-After."""
+    import random
+
     client = _api_client()
     extra = {"dimensions": EMBED_API_DIM} if EMBED_API_DIM else {}
     batch = [t.replace("\n", " ")[:8000] or " " for t in batch]
-    for attempt in range(5):
+    for attempt in range(8):
         try:
             r = client.embeddings.create(model=EMBED_API_MODEL, input=batch, **extra)
             return [d.embedding for d in sorted(r.data, key=lambda d: d.index)]
-        except Exception:
-            if attempt == 4:
+        except Exception as exc:  # noqa: BLE001
+            if attempt == 7:
                 raise
-            time.sleep(1.5 * 2 ** attempt)
+            delay = min(60.0, 2.0 * (2 ** attempt)) + random.uniform(0, 1.5)
+            headers = getattr(getattr(exc, "response", None), "headers", {}) or {}
+            try:
+                delay = max(delay, float(headers.get("retry-after", 0) or 0))
+            except (TypeError, ValueError):
+                pass
+            print(f"    [embed] retry {attempt + 1}/7 after {delay:.0f}s: {type(exc).__name__}", flush=True)
+            time.sleep(delay)
     return []
 
 

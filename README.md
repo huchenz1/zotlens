@@ -125,11 +125,16 @@ Design choices worth knowing:
 
 | | Cloud (`qwen3-embedding-8b` + `cohere/rerank-5-fast`) | Local (Qwen3-0.6B pair) |
 |---|---|---|
-| Full index build | **$0.43** (≈ 36.7 M tokens), ~20 min with 8 workers | $0, ~60 min on M5 Pro (MPS) |
+| Full index build | **$0.41** (≈ 36.7 M tokens), ~25 min at 4 workers | $0, ~60 min on M5 Pro (MPS) |
 | Incremental update | cents | seconds |
 | Rerank per query (20 candidates, 7.6k tokens) | **$0.00015** | $0 |
 | Retrieval latency | 2.5–6 s | ~1.5 s |
 | Offline | no | yes |
+
+Indexing is latency-bound, so `ZOTLENS_EMBED_API_WORKERS` matters: 1 → 4 → 8 workers measured 40 / 60 / 85
+chunks/s. Eight workers also hits the provider's per-model token quota (HTTP 429), which is why the default is 4
+and the retry path backs off up to 60 s. A build interrupted by a rate limit resumes from the last checkpoint
+without re-embedding finished chunks.
 
 Reranker choice matters more than it looks: `cohere/rerank-5-fast` bills per token ($0.02/M → $0.00015/query),
 while `cohere/rerank-4-fast` bills per search ($0.002) — 13× more for the same 20 candidates.
