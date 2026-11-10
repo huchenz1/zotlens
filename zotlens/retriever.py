@@ -9,6 +9,7 @@ Pipeline (per query):
 from __future__ import annotations
 
 import json
+import os
 import re
 import sqlite3
 import threading
@@ -29,6 +30,9 @@ paper papers work works method methods approach approaches study studies any som
 using use used based between across over under more most less least other others such""".split())
 
 RRF_K = 60
+# BM25 is a weak list on this library (0.00 recall@10 for Chinese queries), so it is fused with a
+# lower weight than the dense lists; equal weights measurably hurt (see data/eval_results.md).
+BM25_WEIGHT = float(os.environ.get("ZOTLENS_BM25_WEIGHT", 1.0))
 
 
 def fts_query(q: str) -> str | None:
@@ -254,8 +258,8 @@ class Library:
             if use_bm25:
                 bc = self._bm25_chunks(q, 200, mask)
                 lists.append(("bc", bc))
-                add_list([int(self.chunk_paper[c]) for c in bc], w)
-                add_list(self._bm25_papers(q, 60, mask), w * 0.8)
+                add_list([int(self.chunk_paper[c]) for c in bc], w * BM25_WEIGHT)
+                add_list(self._bm25_papers(q, 60, mask), w * BM25_WEIGHT * 0.8)
             for _, lst in lists:
                 for c in lst:
                     cand_chunks.setdefault(int(self.chunk_paper[c]), [])
