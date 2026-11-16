@@ -71,6 +71,17 @@ EMBED_API_BATCH = int(os.environ.get("ZOTLENS_EMBED_API_BATCH", 64))
 EMBED_API_WORKERS = int(os.environ.get("ZOTLENS_EMBED_API_WORKERS", 4))  # parallel requests when indexing
 EMBED_QUERY_PREFIX = os.environ.get("ZOTLENS_EMBED_QUERY_PREFIX", "")
 
+# Profile defaults, exposed to the UI so the settings panel can pre-fill every field.
+DEFAULTS = {
+    "openrouter_base": OPENROUTER_BASE,
+    "embed_model": _embed_model,
+    "embed_dim": _embed_dim,
+    "rerank_model": _rerank_model,
+    "chat_backend": os.environ.get("ZOTLENS_LLM", "deepseek"),
+    "chat_base": os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
+    "chat_model": os.environ.get("DEEPSEEK_MODEL", "deepseek-v4-flash"),
+}
+
 RERANK_BACKEND = os.environ.get("ZOTLENS_RERANK", _rerank_default).lower()
 RERANK_API_BASE = os.environ.get("ZOTLENS_RERANK_API_BASE", _rerank_base)
 RERANK_API_MODEL = os.environ.get("ZOTLENS_RERANK_API_MODEL", _rerank_model)

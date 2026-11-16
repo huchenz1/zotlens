@@ -137,6 +137,10 @@ button{font:inherit;cursor:pointer}
 .fld input,.fld select{border:1px solid var(--line2);border-radius:8px;padding:8px 10px;font:inherit;font-size:13.5px;background:#fff;outline:none}
 .fld input:focus,.fld select:focus{border-color:var(--accent-line);box-shadow:0 0 0 3px var(--accent-soft)}
 .fld2{display:flex;gap:12px}
+.grp{border:1px solid var(--line);border-radius:10px;padding:12px 14px 4px;margin-bottom:12px;background:#fcfcfd}
+.grp-h{display:flex;align-items:baseline;gap:8px;margin-bottom:10px}
+.grp-h b{font-size:13.5px;color:var(--text)}
+.grp-h span{font-size:11.5px;color:var(--faint)}
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#212529;color:#fff;padding:8px 14px;border-radius:9px;font-size:13px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:60}
 .toast.show{opacity:.95}
 </style>
@@ -208,38 +212,62 @@ button{font:inherit;cursor:pointer}
 <div class="modal" id="settingsModal" onclick="if(event.target===this)closeSettings()">
   <div class="inner" style="width:min(760px,94vw);height:auto;max-height:88vh;overflow:auto">
     <div class="mh"><b>设置</b><div style="display:flex;gap:6px"><button onclick="closeSettings()">关闭</button></div></div>
-    <div style="padding:18px 20px 22px">
-      <div class="hint" style="margin-bottom:14px">填完直接保存即可生效，不用改环境变量，也不用重启。key 只存在本机 <code>data/settings.json</code>。</div>
+    <div style="padding:16px 20px 20px">
+      <div class="hint" style="margin-bottom:14px">改完点保存即生效，不用环境变量、不用重启。key 只存在本机 <code>data/settings.json</code>。</div>
 
-      <div class="fld"><label>OpenRouter API Key</label>
-        <input id="s_or_key" type="password" placeholder="sk-or-v1-...（留空则沿用当前值）" autocomplete="off"></div>
-      <div class="fld"><label>OpenRouter Base URL</label>
-        <input id="s_or_base" type="text" placeholder="https://openrouter.ai/api/v1"></div>
-
-      <div class="fld2">
-        <div class="fld"><label>Embedding 模型</label>
-          <input id="s_embed" type="text" placeholder="qwen/qwen3-embedding-8b"></div>
-        <div class="fld" style="width:120px"><label>维度</label>
-          <input id="s_dim" type="number" placeholder="1024"></div>
+      <div class="grp">
+        <div class="grp-h"><b>检索服务</b><span>Embedding + Rerank，用于把你的库变成可检索的向量</span></div>
+        <div class="fld"><label>服务地址 Base URL</label>
+          <input id="s_or_base" type="text" placeholder="https://openrouter.ai/api/v1"></div>
+        <div class="fld"><label>API Key</label>
+          <input id="s_or_key" type="password" placeholder="sk-or-v1-..." autocomplete="off"></div>
+        <div class="fld2">
+          <div class="fld"><label>Embedding 模型</label>
+            <input id="s_embed" type="text" list="dl_embed" placeholder="qwen/qwen3-embedding-8b"></div>
+          <div class="fld" style="width:120px"><label>维度</label>
+            <input id="s_dim" type="number" placeholder="1024"></div>
+        </div>
+        <div class="fld"><label>Rerank 模型</label>
+          <input id="s_rerank" type="text" list="dl_rerank" placeholder="cohere/rerank-5-fast"></div>
+        <datalist id="dl_embed">
+          <option value="qwen/qwen3-embedding-8b"></option>
+          <option value="qwen/qwen3-embedding-4b"></option>
+          <option value="baai/bge-m3"></option>
+          <option value="openai/text-embedding-3-small"></option>
+          <option value="openai/text-embedding-3-large"></option>
+          <option value="google/gemini-embedding-001"></option>
+        </datalist>
+        <datalist id="dl_rerank">
+          <option value="cohere/rerank-5-fast"></option>
+          <option value="cohere/rerank-4-fast"></option>
+          <option value="qwen/qwen3-reranker-8b"></option>
+          <option value="nvidia/nemotron-3.5-rerank-8b:free"></option>
+        </datalist>
       </div>
-      <div class="fld"><label>Rerank 模型</label>
-        <input id="s_rerank" type="text" placeholder="cohere/rerank-5-fast"></div>
 
-      <div class="fld2">
-        <div class="fld"><label>对话后端</label>
-          <select id="s_chat_backend"><option value="deepseek">deepseek / OpenAI 兼容</option><option value="local">本地 vLLM</option></select></div>
-        <div class="fld"><label>对话模型</label>
-          <input id="s_chat_model" type="text" placeholder="deepseek-v4-flash"></div>
+      <div class="grp">
+        <div class="grp-h"><b>对话服务</b><span>负责组织检索、写回答的模型</span></div>
+        <div class="fld"><label>服务地址 Base URL</label>
+          <input id="s_chat_base" type="text" placeholder="https://api.deepseek.com"></div>
+        <div class="fld"><label>API Key</label>
+          <input id="s_chat_key" type="password" placeholder="sk-..." autocomplete="off"></div>
+        <div class="fld2">
+          <div class="fld"><label>模型</label>
+            <input id="s_chat_model" type="text" list="dl_chat" placeholder="deepseek-v4-flash"></div>
+          <div class="fld" style="width:190px"><label>后端类型</label>
+            <select id="s_chat_backend"><option value="deepseek">OpenAI 兼容</option><option value="local">本地 vLLM</option></select></div>
+        </div>
+        <datalist id="dl_chat">
+          <option value="deepseek-v4-flash"></option>
+          <option value="deepseek-v4-pro"></option>
+        </datalist>
       </div>
-      <div class="fld"><label>对话 Base URL</label>
-        <input id="s_chat_base" type="text" placeholder="https://api.deepseek.com"></div>
-      <div class="fld"><label>对话 API Key</label>
-        <input id="s_chat_key" type="password" placeholder="sk-...（留空则沿用当前值）" autocomplete="off"></div>
 
-      <div id="s_result" style="margin-top:14px;font-size:13px;line-height:1.6"></div>
-      <div style="display:flex;gap:10px;margin-top:16px;align-items:center">
+      <div id="s_result" style="margin-top:12px;font-size:13px;line-height:1.6"></div>
+      <div style="display:flex;gap:10px;margin-top:14px;align-items:center">
         <button class="send" id="s_save" onclick="saveSettings()">保存并测试</button>
         <button class="newchat" style="width:auto" onclick="startIndex();closeSettings()">重建索引</button>
+        <button class="newchat" style="width:auto" onclick="resetSettings()" title="清空本地覆盖，回到默认配置">恢复默认</button>
         <span id="s_path" style="font-size:11.5px;color:var(--faint);margin-left:auto"></span>
       </div>
     </div>
@@ -562,14 +590,14 @@ marked.setOptions({breaks:true, gfm:true});
 // ---------------- settings & index maintenance
 async function openSettings(){
   const r = await (await fetch('/api/settings')).json();
-  const v = r.values || {}, e = r.effective || {};
-  $('#s_or_base').value = v.openrouter_base || e.base || '';
-  $('#s_embed').value = v.embed_model || e.embed_model || '';
-  $('#s_dim').value = v.embed_dim || e.embed_dim || '';
-  $('#s_rerank').value = v.rerank_model || e.rerank_model || '';
-  $('#s_chat_backend').value = v.chat_backend || (e.chat && e.chat.backend) || 'deepseek';
-  $('#s_chat_base').value = v.chat_base || (e.chat && e.chat.base_url) || '';
-  $('#s_chat_model').value = v.chat_model || (e.chat && e.chat.model) || '';
+  const v = r.values || {}, d = r.defaults || {}, e = r.effective || {};
+  $('#s_or_base').value = v.openrouter_base || d.openrouter_base || e.base || '';
+  $('#s_embed').value = v.embed_model || d.embed_model || e.embed_model || '';
+  $('#s_dim').value = v.embed_dim || d.embed_dim || e.embed_dim || '';
+  $('#s_rerank').value = v.rerank_model || d.rerank_model || e.rerank_model || '';
+  $('#s_chat_backend').value = v.chat_backend || d.chat_backend || (e.chat && e.chat.backend) || 'deepseek';
+  $('#s_chat_base').value = v.chat_base || d.chat_base || (e.chat && e.chat.base_url) || '';
+  $('#s_chat_model').value = v.chat_model || d.chat_model || (e.chat && e.chat.model) || '';
   $('#s_or_key').value = ''; $('#s_chat_key').value = '';
   $('#s_or_key').placeholder = v.openrouter_key_set ? '已保存（留空则不改）' : 'sk-or-v1-...';
   $('#s_chat_key').placeholder = v.chat_key_set ? '已保存（留空则不改）' : 'sk-...';
@@ -612,6 +640,16 @@ async function saveSettings(){
     loadStatus();
   }catch(e){ $('#s_result').innerHTML = `<div style="color:#c92a2a">保存失败：${esc(e.message)}</div>`; }
   btn.disabled = false; btn.textContent = '保存并测试';
+}
+
+async function resetSettings(){
+  if(!confirm('清空本机保存的配置，全部回到默认值？')) return;
+  await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({openrouter_base:'',openrouter_key:'',embed_model:'',embed_dim:0,
+      rerank_model:'',chat_backend:'',chat_base:'',chat_model:'',chat_key:''})});
+  await openSettings();
+  $('#s_result').innerHTML = '<div style="color:#2f9e44">已恢复默认配置</div>';
+  loadStatus();
 }
 
 let indexTimer = null;

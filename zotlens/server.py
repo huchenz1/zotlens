@@ -156,6 +156,7 @@ def _vector_signature() -> dict:
 def get_settings():
     sig = _vector_signature()
     return {"values": settings.public(),
+            "defaults": config.DEFAULTS,
             "effective": {**summary(),
                           "embed_model": config.EMBED_API_MODEL,
                           "embed_dim": config.EMBED_API_DIM,

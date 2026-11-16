@@ -45,7 +45,7 @@ def save(values: dict) -> dict:
         if v is None:
             continue
         v = v.strip() if isinstance(v, str) else v
-        if v == "":
+        if v == "" or v == 0:      # 0 is how the UI asks to clear an integer override (embed_dim)
             cur.pop(k, None)
         else:
             cur[k] = v

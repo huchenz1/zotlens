@@ -45,6 +45,11 @@ process (no restart, no environment variables), smoke-tests both backends and te
 change requires a rebuild — which the same panel can start. When the library changed since the last index, the
 sidebar shows 更新索引 with live progress.
 
+![settings](docs/screenshot-settings.png)
+
+Every field is pre-filled with the profile defaults (URL, embedding model/dimension, rerank model, chat
+backend/model), so the panel is usable without knowing any model id in advance; 恢复默认 clears local overrides.
+
 Requirements:
 
 - **Zotero** running, with *Settings → Advanced → “Allow other applications on this computer to communicate
