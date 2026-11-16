@@ -80,12 +80,16 @@ def check_llm() -> bool:
 
 
 def main() -> int:
+    from .config import problems
     print("ZotLens preflight\n" + "=" * 78)
     print(f"embedding endpoint : {EMBED_API_BASE if EMBED_BACKEND == 'api' else EMBED_MODEL}")
     print(f"rerank    endpoint : {RERANK_API_BASE if RERANK_BACKEND == 'api' else RERANK_BACKEND}")
     print(f"keys set           : embed={bool(EMBED_API_KEY)} rerank={bool(RERANK_API_KEY)}")
+    for msg in problems():
+        print(f"  SETUP  {msg}")
     print("-" * 78)
     results = [check_embed(), check_rerank(), check_llm()]
+    results = [r and not (i == 0 and any("OPENROUTER_API_KEY" in p for p in problems())) for i, r in enumerate(results)]
     print("-" * 78)
     bad = results.count(False)
     print("all good" if not bad else f"{bad} check(s) failed — see FAIL lines above")

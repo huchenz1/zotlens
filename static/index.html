@@ -224,6 +224,7 @@ async function loadStatus(){
     const ix = r.index||{};
     $('#emb').textContent = (ix.embed_backend?.backend||'local') + ' / ' + (ix.rerank_backend||'local');
     const warn = [];
+    (r.problems||[]).forEach(p => warn.push(p));
     if(ix.warning) warn.push(ix.warning);
     if(r.stale && r.stale.changed) warn.push(`Zotero 库在索引后有改动（库 v${r.stale.zotero_version} / 索引 v${r.stale.index_version ?? '?'}，索引时间 ${r.stale.index_updated||'?'}），运行 <code>./run.sh index</code> 更新`);
     const sb = $('#stale');

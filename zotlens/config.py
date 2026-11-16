@@ -42,8 +42,11 @@ RERANK_MODEL = MODEL_DIR / "Qwen3-Reranker-0.6B"
 
 # ------------------------------------------------------------------ profile selection
 OPENROUTER_KEY = os.environ.get("OPENROUTER_API_KEY", "")
-PROFILE = os.environ.get("ZOTLENS_PROFILE") or ("cloud" if OPENROUTER_KEY else "local")
 OPENROUTER_BASE = os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+
+# Default is `cloud`: nothing to download, one API key is enough. `local` is opt-in
+# (ZOTLENS_PROFILE=local) because it needs ~2.2 GB of models.
+PROFILE = os.environ.get("ZOTLENS_PROFILE", "cloud").lower()
 
 # ------------------------------------------------------------------ retrieval backends
 # embedding: local | api        rerank: local | api | llm | none
@@ -111,6 +114,24 @@ def llm_config() -> dict:
         "model": os.environ.get("DEEPSEEK_MODEL", "deepseek-v4-flash"),
         "extra_body": {"thinking": {"type": "disabled"}},
     }
+
+
+def problems() -> list[str]:
+    """Human-readable setup problems, so the UI can explain what is missing instead of failing deep
+    inside a request. Empty list = ready to run."""
+    out: list[str] = []
+    if PROFILE == "cloud":
+        if not EMBED_API_KEY:
+            out.append("未配置 OPENROUTER_API_KEY：复制 .env.example 为 .env 并填入 key（云端模式不需要下载任何模型）")
+        if not RERANK_API_KEY:
+            out.append("未配置 rerank 的 key（云端模式下与 OPENROUTER_API_KEY 相同即可）")
+    else:
+        missing = [m.name for m in (EMBED_MODEL, RERANK_MODEL) if not Path(m).exists()]
+        if missing:
+            out.append(f"本地模型缺失：{', '.join(missing)}（或改用默认云端模式：删掉 ZOTLENS_PROFILE=local）")
+    if not llm_config().get("api_key"):
+        out.append("未配置 DEEPSEEK_API_KEY：聊天模型不可用（检索仍可用）")
+    return out
 
 
 def summary() -> dict:

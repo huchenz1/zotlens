@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from pydantic import BaseModel
 
 from .agent import SESSIONS, chat, get_session
-from .config import STATIC_DIR, ZOTERO_API, ZOTERO_STORAGE, llm_config
+from .config import STATIC_DIR, ZOTERO_API, ZOTERO_STORAGE, llm_config, problems, summary
 from .retriever import library
 
 app = FastAPI(title="ZotLens")
@@ -23,8 +23,13 @@ def _warm():
     def w():
         from . import models
         lib = library()
-        models.embed_query("warm up")
-        models.rerank("warm up", ["warm up"])
+        try:
+            models.embed_query("warm up")
+            models.rerank("warm up", ["warm up"])
+        except Exception as exc:  # noqa: BLE001 - report, do not crash the server
+            print(f"[zotlens] retrieval backend NOT ready: {exc}", flush=True)
+        for msg in problems():
+            print(f"[zotlens] setup: {msg}", flush=True)
         print(f"[zotlens] ready: {len(lib.papers)} papers", flush=True)
     threading.Thread(target=w, daemon=True).start()
 
@@ -55,6 +60,7 @@ def status():
                  "zotero_items": zotero_items, "indexed": len(lib.papers),
                  "index_updated": idx.get("updated")}
     return {"index": idx, "zotero_running": zotero_ver is not None, "stale": stale,
+            "problems": problems(), "profile": summary()["profile"],
             "llm": {"backend": cfg["backend"], "model": cfg["model"] or "auto"},
             "collections": lib.collections}
 

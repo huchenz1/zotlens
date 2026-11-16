@@ -73,10 +73,16 @@ def reranker():
 
 
 # ---------------------------------------------------------------- api embedding
+NO_KEY_HINT = ("未配置 OPENROUTER_API_KEY。云端模式只需一个 key：cp .env.example .env，"
+               "把 OPENROUTER_API_KEY 填进去即可，不需要下载任何模型。")
+
+
 def _api_client():
     import httpx
     from openai import OpenAI
-    return OpenAI(base_url=EMBED_API_BASE, api_key=EMBED_API_KEY or "none",
+    if not EMBED_API_KEY:
+        raise RuntimeError(NO_KEY_HINT)
+    return OpenAI(base_url=EMBED_API_BASE, api_key=EMBED_API_KEY,
                   http_client=httpx.Client(trust_env=False, timeout=180))
 
 
@@ -206,6 +212,8 @@ def _api_rerank(query: str, docs: list[str]) -> np.ndarray:
     """Rerank through a Cohere/Jina/SiliconFlow-style POST /rerank endpoint."""
     import httpx
 
+    if not RERANK_API_KEY:
+        raise RuntimeError(NO_KEY_HINT)
     scores = np.zeros(len(docs), dtype=np.float32)
     payload = {"model": RERANK_API_MODEL, "query": query,
                "documents": [" ".join(d.split()[:300]) for d in docs], "top_n": len(docs)}

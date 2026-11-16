@@ -28,6 +28,7 @@ Built as a training-free LLM application (COMP6708 Assignment 3). It combines th
 
 ```bash
 cp .env.example .env        # then fill in OPENROUTER_API_KEY and DEEPSEEK_API_KEY
+                            # the default profile is cloud: no models to download
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt   # skip this if you have an env ready
 
 ./run.sh check              # verify embedding / rerank / chat backends before indexing
@@ -50,8 +51,8 @@ All settings come from `.env` (gitignored) or the environment, in that order of 
 
 | Profile | Embedding | Rerank | Needs |
 |---|---|---|---|
-| `cloud` (default when `OPENROUTER_API_KEY` is set) | `qwen/qwen3-embedding-8b` (1024-d) | `cohere/rerank-5-fast` | one API key |
-| `local` | Qwen3-Embedding-0.6B on MPS/CUDA | Qwen3-Reranker-0.6B | ~2.2 GB of models, fully offline |
+| `cloud` (**default**) | `qwen/qwen3-embedding-8b` (1024-d) | `cohere/rerank-5-fast` | one API key, nothing to download |
+| `local` (opt-in) | Qwen3-Embedding-0.6B on MPS/CUDA | Qwen3-Reranker-0.6B | ~2.2 GB of models, fully offline |
 
 ```bash
 # cloud (default)
@@ -85,6 +86,9 @@ Two notes from testing:
 - **Switching the embedding model invalidates the index.** A different model means a different vector space even
   when the dimension matches (Qwen3-0.6B and bge-m3 are both 1024-d), so the builder deletes stale vectors and
   re-embeds, and the UI warns when the on-disk vectors do not match the configured model.
+
+See **[docs/TECHNOLOGIES.md](docs/TECHNOLOGIES.md)** for the technique-by-technique breakdown
+(FTS5/BM25, RRF, cross-encoder reranking, MCP, Agent Skills, SSE, page localisation) with file references.
 
 ## Architecture
 
@@ -169,7 +173,7 @@ zotlens/            config · zotero_data · build_index · retriever · models 
                     server (FastAPI) · mcp_server · preflight · evaluate
 static/index.html   single-page UI (no build step)
 skills/*/SKILL.md   Agent Skills, loaded via the load_skill tool
-docs/               screenshots + the design research write-up
+docs/               screenshots, TECHNOLOGIES.md (technique-by-technique), eval results, design write-up
 run.sh              serve · check · index · eval · mcp · status
 ```
 
