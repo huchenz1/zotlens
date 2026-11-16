@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 import subprocess
 import threading
 
@@ -12,6 +13,7 @@ from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from pydantic import BaseModel
 
 from .agent import SESSIONS, chat, get_session
+from . import config, settings
 from .config import STATIC_DIR, ZOTERO_API, ZOTERO_STORAGE, llm_config, problems, summary
 from .retriever import library
 
@@ -127,6 +129,119 @@ def search_ep(req: SearchReq):
 def sources(sid: str):
     s = SESSIONS.get(sid)
     return s.sources.all() if s else []
+
+
+# ------------------------------------------------------------------ settings (edited in the UI)
+class SettingsReq(BaseModel):
+    openrouter_base: str | None = None
+    openrouter_key: str | None = None
+    embed_model: str | None = None
+    embed_dim: int | None = None
+    rerank_model: str | None = None
+    chat_backend: str | None = None
+    chat_base: str | None = None
+    chat_model: str | None = None
+    chat_key: str | None = None
+
+
+def _vector_signature() -> dict:
+    from .build_index import VECTORS_SIG
+    try:
+        return json.loads(VECTORS_SIG.read_text())
+    except Exception:
+        return {}
+
+
+@app.get("/api/settings")
+def get_settings():
+    sig = _vector_signature()
+    return {"values": settings.public(),
+            "effective": {**summary(),
+                          "embed_model": config.EMBED_API_MODEL,
+                          "embed_dim": config.EMBED_API_DIM,
+                          "rerank_model": config.RERANK_API_MODEL,
+                          "base": config.EMBED_API_BASE,
+                          "chat": {k: llm_config()[k] for k in ("backend", "base_url", "model")}},
+            "index_vectors": {"model": sig.get("model"), "dim": sig.get("dim")},
+            "can_edit_file": str(settings.PATH)}
+
+
+@app.post("/api/settings")
+def save_settings(req: SettingsReq):
+    """Persist UI settings, apply them to the running process and smoke-test the backends."""
+    from . import models
+    before = (config.EMBED_API_MODEL, config.EMBED_API_DIM, config.EMBED_API_KEY)
+    values = {k: v for k, v in req.model_dump().items() if v is not None}
+    settings.save(values)
+    config.apply_settings()
+    models.reset()
+
+    test = {"embedding": None, "rerank": None}
+    try:
+        v = models.embed_docs(["connectivity check"])
+        test["embedding"] = {"ok": True, "dim": int(v.shape[1])}
+    except Exception as exc:  # noqa: BLE001
+        test["embedding"] = {"ok": False, "error": str(exc)[:300]}
+    try:
+        sc = models.rerank("connectivity check", ["connectivity check", "unrelated text"])
+        test["rerank"] = {"ok": True, "scores": [round(float(x), 4) for x in sc]}
+    except Exception as exc:  # noqa: BLE001
+        test["rerank"] = {"ok": False, "error": str(exc)[:300]}
+
+    sig = _vector_signature()
+    rebuild = bool(sig) and (sig.get("model") != config.EMBED_API_MODEL or sig.get("dim") != config.EMBED_API_DIM)
+    after = (config.EMBED_API_MODEL, config.EMBED_API_DIM, config.EMBED_API_KEY)
+    return {"ok": True, "test": test, "rebuild_required": rebuild, "changed": before != after,
+            "effective": summary()}
+
+
+# ------------------------------------------------------------------ index maintenance
+JOB = {"running": False, "log": [], "error": None, "finished": None}
+
+
+@app.post("/api/index")
+def start_index():
+    """Rebuild/refresh the index in a background thread (incremental: only new passages are embedded)."""
+    if JOB["running"]:
+        return {"ok": True, "running": True, "already": True}
+    JOB.update({"running": True, "log": [], "error": None, "finished": None})
+
+    def work():
+        import io
+        import contextlib
+        from . import build_index, models, retriever
+
+        buf = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(buf):
+                build_index.main(["--batch", "16"])
+            JOB["error"] = None
+        except Exception as exc:  # noqa: BLE001
+            JOB["error"] = f"{type(exc).__name__}: {exc}"
+        finally:
+            JOB["log"] = buf.getvalue().strip().splitlines()[-6:]
+            JOB["running"] = False
+            JOB["finished"] = time.strftime("%H:%M:%S")
+            # the running server must adopt the new index: papers/order and vectors both changed
+            try:
+                models.reset()
+                retriever._pdf_pages.cache_clear()
+                library().load()
+            except Exception as exc:  # noqa: BLE001
+                JOB["error"] = (JOB["error"] or "") + f" reload failed: {exc}"
+
+    threading.Thread(target=work, daemon=True).start()
+    return {"ok": True, "running": True}
+
+
+@app.get("/api/index/status")
+def index_status():
+    lib = library()
+    st = lib.status()
+    return {"running": JOB["running"], "error": JOB["error"], "finished": JOB["finished"],
+            "log": JOB["log"], "stage": st.get("stage"), "chunks_embedded": st.get("chunks_embedded"),
+            "chunks": st.get("chunks"), "papers": st.get("papers"),
+            "stale": status().get("stale")}
 
 
 @app.get("/api/pdf/{att_key}")

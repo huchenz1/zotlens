@@ -37,7 +37,13 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt   # skip this
 ```
 
 The app is usable as soon as BM25 and paper-level vectors exist; chunk vectors are hot-reloaded while being
-built. Re-running `./run.sh index` is incremental — unchanged chunks reuse their vectors.
+built. Re-running the index is incremental — unchanged chunks reuse their vectors.
+
+**Everything can also be configured in the UI.** The 设置 button opens a panel for the API key, base URL,
+embedding model/dimension, rerank model and the chat backend/model/key. Saving applies the values to the running
+process (no restart, no environment variables), smoke-tests both backends and tells you when the embedding model
+change requires a rebuild — which the same panel can start. When the library changed since the last index, the
+sidebar shows 更新索引 with live progress.
 
 Requirements:
 

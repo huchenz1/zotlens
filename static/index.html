@@ -132,6 +132,11 @@ button{font:inherit;cursor:pointer}
 .modal .mh b{font-weight:500;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .modal .mh button{border:1px solid var(--line2);background:#fff;border-radius:7px;padding:3px 10px}
 .modal iframe{flex:1;border:0}
+.fld{display:flex;flex-direction:column;gap:4px;margin-bottom:12px;flex:1}
+.fld label{font-size:12.5px;color:var(--muted)}
+.fld input,.fld select{border:1px solid var(--line2);border-radius:8px;padding:8px 10px;font:inherit;font-size:13.5px;background:#fff;outline:none}
+.fld input:focus,.fld select:focus{border-color:var(--accent-line);box-shadow:0 0 0 3px var(--accent-soft)}
+.fld2{display:flex;gap:12px}
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#212529;color:#fff;padding:8px 14px;border-radius:9px;font-size:13px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:60}
 .toast.show{opacity:.95}
 </style>
@@ -140,7 +145,10 @@ button{font:inherit;cursor:pointer}
 <div class="app">
   <aside class="side">
     <div class="brand"><div class="logo">Z</div><div>ZotLens<small>本地 Zotero 文献助手</small></div></div>
-    <button class="newchat" onclick="newChat()">+ 新对话</button>
+    <div style="display:flex;gap:6px">
+      <button class="newchat" style="flex:1" onclick="newChat()">+ 新对话</button>
+      <button class="newchat" style="width:auto;padding:8px 12px;white-space:nowrap" title="设置" onclick="openSettings()">设置</button>
+    </div>
     <div class="sec">
       <h4>文献库</h4>
       <div class="stat"><span><i class="dot" id="zdot"></i>Zotero</span><span id="zstate">检测中</span></div>
@@ -150,6 +158,8 @@ button{font:inherit;cursor:pointer}
       <div class="stat" style="margin-top:6px"><span>LLM</span><span id="llm">-</span></div>
       <div class="stat"><span>向量 / 重排</span><span id="emb">-</span></div>
       <div id="stale" style="display:none;margin-top:8px;font-size:12px;line-height:1.5;color:#8a5b00;background:#fff9db;border:1px solid #ffe8a1;border-radius:8px;padding:6px 8px"></div>
+      <button id="indexBtn" class="newchat" style="margin-top:8px;display:none" onclick="startIndex()">更新索引</button>
+      <div id="indexProg" style="display:none;margin-top:6px;font-size:12px;color:var(--muted)"></div>
     </div>
     <div class="sec">
       <h4>分类（点击限定检索范围）</h4>
@@ -195,6 +205,47 @@ button{font:inherit;cursor:pointer}
   </aside>
 </div>
 
+<div class="modal" id="settingsModal" onclick="if(event.target===this)closeSettings()">
+  <div class="inner" style="width:min(760px,94vw);height:auto;max-height:88vh;overflow:auto">
+    <div class="mh"><b>设置</b><div style="display:flex;gap:6px"><button onclick="closeSettings()">关闭</button></div></div>
+    <div style="padding:18px 20px 22px">
+      <div class="hint" style="margin-bottom:14px">填完直接保存即可生效，不用改环境变量，也不用重启。key 只存在本机 <code>data/settings.json</code>。</div>
+
+      <div class="fld"><label>OpenRouter API Key</label>
+        <input id="s_or_key" type="password" placeholder="sk-or-v1-...（留空则沿用当前值）" autocomplete="off"></div>
+      <div class="fld"><label>OpenRouter Base URL</label>
+        <input id="s_or_base" type="text" placeholder="https://openrouter.ai/api/v1"></div>
+
+      <div class="fld2">
+        <div class="fld"><label>Embedding 模型</label>
+          <input id="s_embed" type="text" placeholder="qwen/qwen3-embedding-8b"></div>
+        <div class="fld" style="width:120px"><label>维度</label>
+          <input id="s_dim" type="number" placeholder="1024"></div>
+      </div>
+      <div class="fld"><label>Rerank 模型</label>
+        <input id="s_rerank" type="text" placeholder="cohere/rerank-5-fast"></div>
+
+      <div class="fld2">
+        <div class="fld"><label>对话后端</label>
+          <select id="s_chat_backend"><option value="deepseek">deepseek / OpenAI 兼容</option><option value="local">本地 vLLM</option></select></div>
+        <div class="fld"><label>对话模型</label>
+          <input id="s_chat_model" type="text" placeholder="deepseek-v4-flash"></div>
+      </div>
+      <div class="fld"><label>对话 Base URL</label>
+        <input id="s_chat_base" type="text" placeholder="https://api.deepseek.com"></div>
+      <div class="fld"><label>对话 API Key</label>
+        <input id="s_chat_key" type="password" placeholder="sk-...（留空则沿用当前值）" autocomplete="off"></div>
+
+      <div id="s_result" style="margin-top:14px;font-size:13px;line-height:1.6"></div>
+      <div style="display:flex;gap:10px;margin-top:16px;align-items:center">
+        <button class="send" id="s_save" onclick="saveSettings()">保存并测试</button>
+        <button class="newchat" style="width:auto" onclick="startIndex();closeSettings()">重建索引</button>
+        <span id="s_path" style="font-size:11.5px;color:var(--faint);margin-left:auto"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="modal" id="modal" onclick="if(event.target===this)closeModal()">
   <div class="inner"><div class="mh"><b id="mTitle"></b><div style="display:flex;gap:6px"><button id="mZotero">在 Zotero 中打开</button><button onclick="closeModal()">关闭</button></div></div>
   <iframe id="mFrame"></iframe></div>
@@ -229,6 +280,8 @@ async function loadStatus(){
     if(r.stale && r.stale.changed) warn.push(`Zotero 库在索引后有改动（库 v${r.stale.zotero_version} / 索引 v${r.stale.index_version ?? '?'}，索引时间 ${r.stale.index_updated||'?'}），运行 <code>./run.sh index</code> 更新`);
     const sb = $('#stale');
     if(warn.length){ sb.style.display='block'; sb.innerHTML = warn.join('<br>'); } else sb.style.display='none';
+    const needIndex = (r.stale && r.stale.changed) || !!(ix.warning && /索引/.test(ix.warning));
+    $('#indexBtn').style.display = needIndex ? 'block' : 'none';
     if(!$('#colls').dataset.ok){
       $('#colls').dataset.ok=1;
       $('#colls').innerHTML = `<div class="coll active" data-c=""><span>全部</span><span>${r.index.papers_loaded}</span></div>` +
@@ -506,6 +559,83 @@ inp.addEventListener('input',autosize);
 inp.addEventListener('keydown',e=>{ if(e.key==='Enter' && !e.shiftKey && !e.isComposing){ e.preventDefault(); send(); } });
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeModal(); });
 marked.setOptions({breaks:true, gfm:true});
+// ---------------- settings & index maintenance
+async function openSettings(){
+  const r = await (await fetch('/api/settings')).json();
+  const v = r.values || {}, e = r.effective || {};
+  $('#s_or_base').value = v.openrouter_base || e.base || '';
+  $('#s_embed').value = v.embed_model || e.embed_model || '';
+  $('#s_dim').value = v.embed_dim || e.embed_dim || '';
+  $('#s_rerank').value = v.rerank_model || e.rerank_model || '';
+  $('#s_chat_backend').value = v.chat_backend || (e.chat && e.chat.backend) || 'deepseek';
+  $('#s_chat_base').value = v.chat_base || (e.chat && e.chat.base_url) || '';
+  $('#s_chat_model').value = v.chat_model || (e.chat && e.chat.model) || '';
+  $('#s_or_key').value = ''; $('#s_chat_key').value = '';
+  $('#s_or_key').placeholder = v.openrouter_key_set ? '已保存（留空则不改）' : 'sk-or-v1-...';
+  $('#s_chat_key').placeholder = v.chat_key_set ? '已保存（留空则不改）' : 'sk-...';
+  const sig = r.index_vectors || {};
+  $('#s_path').textContent = `当前索引向量：${sig.model||'?'} · ${sig.dim||'?'} 维`;
+  $('#s_result').innerHTML = '';
+  $('#settingsModal').classList.add('show');
+}
+function closeSettings(){ $('#settingsModal').classList.remove('show'); }
+
+function formValues(){
+  const val = id => ($(id).value||'').trim();
+  const out = {};
+  if(val('#s_or_base')) out.openrouter_base = val('#s_or_base');
+  if(val('#s_or_key')) out.openrouter_key = val('#s_or_key');
+  if(val('#s_embed')) out.embed_model = val('#s_embed');
+  if(val('#s_dim')) out.embed_dim = parseInt(val('#s_dim'), 10) || null;
+  if(val('#s_rerank')) out.rerank_model = val('#s_rerank');
+  if(val('#s_chat_backend')) out.chat_backend = val('#s_chat_backend');
+  if(val('#s_chat_base')) out.chat_base = val('#s_chat_base');
+  if(val('#s_chat_model')) out.chat_model = val('#s_chat_model');
+  if(val('#s_chat_key')) out.chat_key = val('#s_chat_key');
+  return out;
+}
+
+async function saveSettings(){
+  const btn = $('#s_save'); btn.disabled = true; btn.textContent = '测试中…';
+  $('#s_result').innerHTML = '<span style="color:var(--muted)">正在保存并测试两个后端…</span>';
+  try{
+    const r = await (await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(formValues())})).json();
+    const t = r.test || {};
+    const line = (name, o) => o && o.ok
+      ? `<div style="color:#2f9e44">✓ ${name} 正常${o.dim?`（${o.dim} 维）`:''}</div>`
+      : `<div style="color:#c92a2a">✗ ${name} 失败：${esc((o&&o.error)||'未知错误')}</div>`;
+    let html = line('Embedding', t.embedding) + line('Rerank', t.rerank);
+    if(r.rebuild_required) html += `<div style="color:#8a5b00;background:#fff9db;border:1px solid #ffe8a1;border-radius:8px;padding:8px 10px;margin-top:8px">
+      Embedding 模型/维度变了，必须重建索引才能检索：<button class="newchat" style="width:auto;display:inline-block;margin-left:6px;padding:2px 10px" onclick="startIndex();closeSettings()">立即重建</button></div>`;
+    $('#s_result').innerHTML = html;
+    loadStatus();
+  }catch(e){ $('#s_result').innerHTML = `<div style="color:#c92a2a">保存失败：${esc(e.message)}</div>`; }
+  btn.disabled = false; btn.textContent = '保存并测试';
+}
+
+let indexTimer = null;
+async function startIndex(){
+  const btn = $('#indexBtn');
+  btn.disabled = true; btn.textContent = '索引更新中…';
+  const prog = $('#indexProg'); prog.style.display = 'block'; prog.textContent = '启动中…';
+  try{ await fetch('/api/index', {method:'POST'}); }catch(e){ toast('启动失败：'+e.message); }
+  clearInterval(indexTimer);
+  indexTimer = setInterval(async () => {
+    let r;
+    try{ r = await (await fetch('/api/index/status')).json(); }catch(e){ return; }
+    if(r.running){
+      prog.textContent = `已嵌入 ${r.chunks_embedded||0} / ${r.chunks||'?'} 段 · ${r.stage||'准备中'}`;
+    } else {
+      clearInterval(indexTimer);
+      btn.disabled = false; btn.textContent = '更新索引';
+      if(r.error){ prog.innerHTML = `<span style="color:#c92a2a">失败：${esc(r.error)}</span>`; }
+      else { prog.innerHTML = `<span style="color:#2f9e44">完成 · ${r.papers} 篇 / ${r.chunks} 段${r.finished?' · '+r.finished:''}</span>`; toast('索引已更新'); }
+      loadStatus();
+    }
+  }, 2000);
+}
+
 loadStatus().then(emptyState); setInterval(loadStatus, 15000);
 </script>
 </body>

@@ -1,7 +1,7 @@
 """Central configuration.
 
-Order of precedence for every setting below: process environment > `.env` file > profile default.
-`.env` is gitignored; `.env.example` shows the supported keys.
+Order of precedence: UI settings (`data/settings.json`, edited in the app) > process environment >
+`.env` file > profile default. `.env` and `settings.json` are both gitignored.
 
 Profiles (`ZOTLENS_PROFILE`):
   cloud (default when an OpenRouter key is present)  OpenRouter embeddings + rerank, no local models
@@ -10,6 +10,8 @@ Profiles (`ZOTLENS_PROFILE`):
 import json
 import os
 from pathlib import Path
+
+from . import settings as _settings
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -74,6 +76,37 @@ RERANK_API_BASE = os.environ.get("ZOTLENS_RERANK_API_BASE", _rerank_base)
 RERANK_API_MODEL = os.environ.get("ZOTLENS_RERANK_API_MODEL", _rerank_model)
 RERANK_API_KEY = os.environ.get("ZOTLENS_RERANK_API_KEY") or OPENROUTER_KEY
 
+# ------------------------------------------------------------------ UI overrides
+def apply_settings(values: dict | None = None) -> None:
+    """Push settings edited in the UI onto this module. Called on import and after each save, so a
+    change takes effect without restarting the server."""
+    global PROFILE, EMBED_BACKEND, EMBED_API_BASE, EMBED_API_MODEL, EMBED_API_KEY, EMBED_API_DIM
+    global RERANK_BACKEND, RERANK_API_BASE, RERANK_API_MODEL, RERANK_API_KEY
+
+    s = _settings.load() if values is None else values
+    if not s:
+        return
+    base = s.get("openrouter_base") or OPENROUTER_BASE
+    key = s.get("openrouter_key") or OPENROUTER_KEY
+    if base or key:
+        PROFILE = "cloud"
+        EMBED_BACKEND = "api"
+        EMBED_API_BASE = base
+        EMBED_API_KEY = key or EMBED_API_KEY
+        if s.get("embed_model"):
+            EMBED_API_MODEL = s["embed_model"]
+        if s.get("embed_dim"):
+            EMBED_API_DIM = int(s["embed_dim"])
+        RERANK_BACKEND = "api"
+        RERANK_API_BASE = base
+        RERANK_API_KEY = key or RERANK_API_KEY
+        if s.get("rerank_model"):
+            RERANK_API_MODEL = s["rerank_model"]
+
+
+apply_settings()
+
+
 # ------------------------------------------------------------------ chunking
 CHUNK_WORDS = int(os.environ.get("ZOTLENS_CHUNK_WORDS", 300))
 CHUNK_OVERLAP = int(os.environ.get("ZOTLENS_CHUNK_OVERLAP", 50))
@@ -87,16 +120,17 @@ def llm_config() -> dict:
     The DeepSeek key comes from DEEPSEEK_API_KEY / .env; as a convenience it can also be
     read from the WorkBuddy model registry on this machine, but it is never stored in code.
     """
-    backend = os.environ.get("ZOTLENS_LLM", "deepseek")
+    s = _settings.load()
+    backend = (s.get("chat_backend") or os.environ.get("ZOTLENS_LLM", "deepseek")).lower()
     if backend == "local":
         return {
             "backend": "local",
-            "base_url": os.environ.get("ZOTLENS_LOCAL_URL", "http://127.0.0.1:8081/v1"),
+            "base_url": s.get("chat_base") or os.environ.get("ZOTLENS_LOCAL_URL", "http://127.0.0.1:8081/v1"),
             "api_key": "local-no-auth",
-            "model": os.environ.get("ZOTLENS_LOCAL_MODEL", ""),  # resolved from /v1/models if empty
+            "model": s.get("chat_model") or os.environ.get("ZOTLENS_LOCAL_MODEL", ""),
             "extra_body": {},
         }
-    key = os.environ.get("DEEPSEEK_API_KEY", "")
+    key = s.get("chat_key") or os.environ.get("DEEPSEEK_API_KEY", "")
     if not key:
         reg = Path.home() / ".workbuddy" / "models.json"
         if reg.exists():
@@ -108,10 +142,10 @@ def llm_config() -> dict:
             except Exception:
                 pass
     return {
-        "backend": "deepseek",
-        "base_url": os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
+        "backend": backend,
+        "base_url": s.get("chat_base") or os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
         "api_key": key,
-        "model": os.environ.get("DEEPSEEK_MODEL", "deepseek-v4-flash"),
+        "model": s.get("chat_model") or os.environ.get("DEEPSEEK_MODEL", "deepseek-v4-flash"),
         "extra_body": {"thinking": {"type": "disabled"}},
     }
 

@@ -53,6 +53,8 @@ dropping BM25 entirely (R@10 0.62) both lose to equal weights (0.68).
 |---|---|---|
 | **Pluggable backends** | `ZOTLENS_EMBED=local|api`, `ZOTLENS_RERANK=local|api|llm|none`. Any OpenAI-compatible `/embeddings` and any `POST /rerank` provider works; the dimension is auto-probed and recorded. | `config.py`, `models.py` |
 | **Profiles** | `cloud` (default, one API key, nothing to download) vs `local` (opt-in, ~2.2 GB of models, fully offline). | `config.py` |
+| **Runtime settings from the UI** | A `data/settings.json` overlay (gitignored, mode 600) takes precedence over env vars. Saving from the 设置 panel applies the values to the live process — `config.apply_settings()` pushes them onto the config module and `models` late-binds `config.*`, so no restart is needed. | `settings.py`, `config.py`, `server.py` |
+| **In-app index maintenance** | 更新索引 / 重建索引 start `build_index` in a background thread; progress is polled from `/api/index/status`, and when it finishes the server reloads papers, the SQLite handle and the vector arrays so the new index is used immediately. | `server.start_index`, `retriever.Library.load` |
 | **Preflight** | `./run.sh check` verifies embedding, rerank and chat in one shot and reports missing keys before an index build. | `preflight.py` |
 | **Evaluation harness** | Questions are generated from real passages (half English, half Chinese) without reusing titles, so keyword search cannot cheat; six retrieval designs are compared on Recall@1/5/10 and MRR. | `evaluate.py` |
 | **Retry / backoff** | Provider rate limits (HTTP 429, per-model token quota) are retried 8 times with exponential backoff up to 60 s, honouring `Retry-After`; an interrupted index build resumes from the last checkpoint. | `models._embed_batch` |

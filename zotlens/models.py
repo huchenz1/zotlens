@@ -19,17 +19,21 @@ import time
 
 import numpy as np
 
-from .config import (DATA_DIR, EMBED_API_BASE, EMBED_API_BATCH, EMBED_API_DIM, EMBED_API_KEY, EMBED_API_WORKERS,
-                     EMBED_API_MODEL, EMBED_BACKEND, EMBED_MODEL, EMBED_QUERY_PREFIX, RERANK_API_BASE,
-                     RERANK_API_KEY, RERANK_API_MODEL, RERANK_BACKEND, RERANK_MODEL)
+from . import config as cfg
 
 _lock = threading.RLock()
 _embedder = None
 _reranker = None
 _dim: int | None = None
 
+
+def reset() -> None:
+    """Forget cached backend metadata after the user edits settings."""
+    global _dim
+    _dim = None
+
 QUERY_PROMPT = "Instruct: Given a research question, retrieve passages from scientific papers that answer it\nQuery:"
-META = DATA_DIR / "embed_meta.json"
+META = cfg.DATA_DIR / "embed_meta.json"
 
 
 def device() -> str:
@@ -50,7 +54,7 @@ def embedder():
             from sentence_transformers import SentenceTransformer
             dev = device()
             _embedder = SentenceTransformer(
-                str(EMBED_MODEL), device=dev,
+                str(cfg.EMBED_MODEL), device=dev,
                 model_kwargs={"torch_dtype": torch.float16 if dev != "cpu" else torch.float32},
                 tokenizer_kwargs={"padding_side": "left"},
             )
@@ -66,7 +70,7 @@ def reranker():
             from sentence_transformers import CrossEncoder
             dev = device()
             _reranker = CrossEncoder(
-                str(RERANK_MODEL), device=dev, max_length=640,
+                str(cfg.RERANK_MODEL), device=dev, max_length=640,
                 model_kwargs={"torch_dtype": torch.float16 if dev != "cpu" else torch.float32},
             )
     return _reranker
@@ -80,9 +84,9 @@ NO_KEY_HINT = ("未配置 OPENROUTER_API_KEY。云端模式只需一个 key：cp
 def _api_client():
     import httpx
     from openai import OpenAI
-    if not EMBED_API_KEY:
+    if not cfg.EMBED_API_KEY:
         raise RuntimeError(NO_KEY_HINT)
-    return OpenAI(base_url=EMBED_API_BASE, api_key=EMBED_API_KEY,
+    return OpenAI(base_url=cfg.EMBED_API_BASE, api_key=cfg.EMBED_API_KEY,
                   http_client=httpx.Client(trust_env=False, timeout=180))
 
 
@@ -93,14 +97,14 @@ def _api_embed(texts: list[str]) -> np.ndarray:
     batches give a near-linear speed-up until the provider rate-limits us."""
     from concurrent.futures import ThreadPoolExecutor
 
-    batches = [texts[i:i + EMBED_API_BATCH] for i in range(0, len(texts), EMBED_API_BATCH)]
+    batches = [texts[i:i + cfg.EMBED_API_BATCH] for i in range(0, len(texts), cfg.EMBED_API_BATCH)]
     out: list[list[float] | None] = [None] * len(batches)
 
     def run(i: int, batch: list[str]) -> None:
         out[i] = _embed_batch(batch)
 
-    if EMBED_API_WORKERS > 1 and len(batches) > 1:
-        with ThreadPoolExecutor(max_workers=EMBED_API_WORKERS) as pool:
+    if cfg.EMBED_API_WORKERS > 1 and len(batches) > 1:
+        with ThreadPoolExecutor(max_workers=cfg.EMBED_API_WORKERS) as pool:
             list(pool.map(lambda p: run(*p), enumerate(batches)))
     else:
         for i, b in enumerate(batches):
@@ -118,11 +122,11 @@ def _embed_batch(batch: list[str]) -> list[list[float]]:
     import random
 
     client = _api_client()
-    extra = {"dimensions": EMBED_API_DIM} if EMBED_API_DIM else {}
+    extra = {"dimensions": cfg.EMBED_API_DIM} if cfg.EMBED_API_DIM else {}
     batch = [t.replace("\n", " ")[:8000] or " " for t in batch]
     for attempt in range(8):
         try:
-            r = client.embeddings.create(model=EMBED_API_MODEL, input=batch, **extra)
+            r = client.embeddings.create(model=cfg.EMBED_API_MODEL, input=batch, **extra)
             return [d.embedding for d in sorted(r.data, key=lambda d: d.index)]
         except Exception as exc:  # noqa: BLE001
             if attempt == 7:
@@ -140,8 +144,8 @@ def _embed_batch(batch: list[str]) -> list[list[float]]:
 
 def embed_backend() -> dict:
     """Describe the active embedding backend (also persisted for the index builder)."""
-    return {"backend": EMBED_BACKEND,
-            "model": EMBED_API_MODEL if EMBED_BACKEND == "api" else EMBED_MODEL.name}
+    return {"backend": cfg.EMBED_BACKEND,
+            "model": cfg.EMBED_API_MODEL if cfg.EMBED_BACKEND == "api" else cfg.EMBED_MODEL.name}
 
 
 def embed_dim() -> int:
@@ -150,11 +154,11 @@ def embed_dim() -> int:
     with _lock:
         if _dim is not None:
             return _dim
-        if EMBED_BACKEND == "api":
+        if cfg.EMBED_BACKEND == "api":
             if META.exists():
                 try:
                     m = json.loads(META.read_text())
-                    if m.get("backend") == "api" and m.get("model") == EMBED_API_MODEL and m.get("dim"):
+                    if m.get("backend") == "api" and m.get("model") == cfg.EMBED_API_MODEL and m.get("dim"):
                         _dim = int(m["dim"])
                         return _dim
                 except Exception:
@@ -171,7 +175,7 @@ def embed_dim() -> int:
 def embed_docs(texts: list[str], batch_size: int = 32, show_progress: bool = False) -> np.ndarray:
     if not texts:
         return np.zeros((0, embed_dim()), dtype=np.float16)
-    if EMBED_BACKEND == "api":
+    if cfg.EMBED_BACKEND == "api":
         return _api_embed(texts).astype(np.float16)
     return embedder().encode(texts, batch_size=batch_size, normalize_embeddings=True,
                              convert_to_numpy=True, show_progress_bar=show_progress).astype(np.float16)
@@ -180,8 +184,8 @@ def embed_docs(texts: list[str], batch_size: int = 32, show_progress: bool = Fal
 def embed_query(text: str | list[str]) -> np.ndarray:
     single = isinstance(text, str)
     items = [text] if single else list(text)
-    if EMBED_BACKEND == "api":
-        prefix = EMBED_QUERY_PREFIX
+    if cfg.EMBED_BACKEND == "api":
+        prefix = cfg.EMBED_QUERY_PREFIX
         v = _api_embed([prefix + t for t in items]).astype(np.float32)
     else:
         v = embedder().encode(items, prompt=QUERY_PROMPT, normalize_embeddings=True,
@@ -190,17 +194,17 @@ def embed_query(text: str | list[str]) -> np.ndarray:
 
 
 def rerank_kind() -> str:
-    return RERANK_BACKEND
+    return cfg.RERANK_BACKEND
 
 
 def rerank(query: str, docs: list[str], batch_size: int = 16) -> np.ndarray:
     """Scores that are higher-is-better. `local` returns cross-encoder logits (any range),
     `api`/`llm` return 0..1 relevance, `none` returns zeros so the caller keeps the RRF order."""
-    if not docs or RERANK_BACKEND == "none":
+    if not docs or cfg.RERANK_BACKEND == "none":
         return np.zeros(len(docs), dtype=np.float32)
-    if RERANK_BACKEND == "llm":
+    if cfg.RERANK_BACKEND == "llm":
         return _llm_rerank(query, docs)
-    if RERANK_BACKEND == "api":
+    if cfg.RERANK_BACKEND == "api":
         return _api_rerank(query, docs)
     with _lock:
         scores = reranker().predict([(query, d) for d in docs], batch_size=batch_size,
@@ -212,15 +216,15 @@ def _api_rerank(query: str, docs: list[str]) -> np.ndarray:
     """Rerank through a Cohere/Jina/SiliconFlow-style POST /rerank endpoint."""
     import httpx
 
-    if not RERANK_API_KEY:
+    if not cfg.RERANK_API_KEY:
         raise RuntimeError(NO_KEY_HINT)
     scores = np.zeros(len(docs), dtype=np.float32)
-    payload = {"model": RERANK_API_MODEL, "query": query,
+    payload = {"model": cfg.RERANK_API_MODEL, "query": query,
                "documents": [" ".join(d.split()[:300]) for d in docs], "top_n": len(docs)}
-    headers = {"Authorization": f"Bearer {RERANK_API_KEY}", "Content-Type": "application/json"}
+    headers = {"Authorization": f"Bearer {cfg.RERANK_API_KEY}", "Content-Type": "application/json"}
     for attempt in range(3):
         try:
-            r = httpx.post(f"{RERANK_API_BASE.rstrip('/')}/rerank", json=payload, headers=headers,
+            r = httpx.post(f"{cfg.RERANK_API_BASE.rstrip('/')}/rerank", json=payload, headers=headers,
                            timeout=60, trust_env=False)
             r.raise_for_status()
             body = r.json()
