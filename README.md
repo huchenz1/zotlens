@@ -9,8 +9,6 @@ Built as a training-free LLM application (COMP6708 Assignment 3). It combines th
 - **MCP** — the same retrieval tools are exposed to any MCP client (Claude Desktop, Cursor, WorkBuddy)
 - **Agent Skills** — `SKILL.md` procedures the agent loads on demand (search, compare, related work, deep read)
 
-![chat](docs/screenshot-chat.png)
-
 ## Features
 
 | | |
@@ -21,8 +19,6 @@ Built as a training-free LLM application (COMP6708 Assignment 3). It combines th
 | **Skills** | Multi-round search, comparison tables, related-work drafting, single-paper deep read. Select cards → 对比 / 写综述 / 基于所选提问. |
 | **Search-only mode** | Retrieval + reranking without an LLM: fast, offline, and a safe fallback during a demo. |
 | **MCP server** | Same tools, usable outside this UI. |
-
-![compare](docs/screenshot-compare.png)
 
 ## Quick start
 
@@ -44,11 +40,6 @@ embedding model/dimension, rerank model and the chat backend/model/key. Saving a
 process (no restart, no environment variables), smoke-tests both backends and tells you when the embedding model
 change requires a rebuild — which the same panel can start. When the library changed since the last index, the
 sidebar shows 更新索引 with live progress.
-
-![settings](docs/screenshot-settings.png)
-
-Every field is pre-filled with the profile defaults (URL, embedding model/dimension, rerank model, chat
-backend/model), so the panel is usable without knowing any model id in advance; 恢复默认 clears local overrides.
 
 Requirements:
 
@@ -134,14 +125,12 @@ Design choices worth knowing:
 - **Two-stage retrieval on purpose**: bi-encoders are cheap enough to score the whole library, cross-encoders are
   accurate but must be run per candidate — so recall 200, rerank ~20, show 5.
 
-![pdf](docs/screenshot-pdf.png)
-
-## Cost and latency (measured on 1,994 papers / 68,090 chunks)
+## Cost and latency (measured on 1,995 papers / 68,097 chunks)
 
 | | Cloud (`qwen3-embedding-8b` + `cohere/rerank-5-fast`) | Local (Qwen3-0.6B pair) |
 |---|---|---|
-| Full index build | **$0.41** (≈ 36.7 M tokens), ~25 min at 4 workers | $0, ~60 min on M5 Pro (MPS) |
-| Incremental update | cents | seconds |
+| Full index build | **$0.41** (~36.7 M tokens), ~25 min at 4 workers | $0, ~60 min on M5 Pro (MPS) |
+| Incremental update | under $0.01 | seconds |
 | Rerank per query (20 candidates, 7.6k tokens) | **$0.00015** | $0 |
 | Retrieval latency | 2.5–6 s | ~1.5 s |
 | Offline | no | yes |
@@ -184,7 +173,7 @@ zotlens/            config · zotero_data · build_index · retriever · models 
                     server (FastAPI) · mcp_server · preflight · evaluate
 static/index.html   single-page UI (no build step)
 skills/*/SKILL.md   Agent Skills, loaded via the load_skill tool
-docs/               screenshots, TECHNOLOGIES.md (technique-by-technique), eval results, design write-up
+docs/               TECHNOLOGIES.md (technique-by-technique), eval results, design write-up
 run.sh              serve · check · index · eval · mcp · status
 ```
 

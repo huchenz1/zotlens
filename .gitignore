@@ -1,6 +1,9 @@
 # secrets — never commit
 .env
 
+# screenshots of the running app contain real paper titles from the local library — do not commit
+docs/screenshot-*.png
+
 # generated index, logs and local backups (rebuild with ./run.sh index)
 data/
 *.npy
