@@ -1,8 +1,8 @@
 # Technologies used
 
 Every technique below is implemented in this repository; the "where" column points at the file that
-does the work, and the "measured" column is what it cost or bought on a real 1,994-paper library
-(68,090 passages). Numbers come from `docs/eval_results.md` and the timing logs in `data/`.
+does the work, and the "measured" column is what it cost or bought on a real 1,995-paper library
+(68,097 passages). Numbers come from `docs/eval_results.md` and the timing logs in `data/`.
 
 ## 1. Retrieval
 
@@ -24,7 +24,7 @@ dropping BM25 entirely (R@10 0.62) both lose to equal weights (0.68).
 |---|---|---|
 | **Read-only Zotero access** | `zotero.sqlite` is copied to a snapshot before reading (Zotero may hold an exclusive lock); the live database is never opened for writing. | `zotero_data.py` |
 | **Reusing Zotero's own text extraction** | Zotero already caches every PDF's text in `.zotero-ft-cache` next to the attachment. We read that instead of parsing PDFs, which removes an entire OCR/layout dependency from the index path. | `zotero_data.read_paper_text` |
-| **Record linkage / dedupe** | Items are merged by DOI → arXiv id → normalised title. 2,548 raw items became 1,994 unique papers (560 duplicates removed). | `zotero_data.dedupe` |
+| **Record linkage / dedupe** | Items are merged by DOI → arXiv id → normalised title. 2,556 raw items became 1,995 unique papers (561 duplicates removed). | `zotero_data.dedupe` |
 | **Chunking** | 300-word windows with 50-word overlap, capped at 60 chunks per paper, plus a bibliography-stripping heuristic so reference lists do not pollute retrieval. | `zotero_data.chunk_text` |
 | **PDF page localisation** | The passage is searched inside the PDF's pages with a normalised 7-gram probe (three probe offsets to survive header/footer noise), falling back to best 4-gram overlap. Output feeds `zotero://open-pdf/library/items/<key>?page=N`. | `retriever.locate_page` | 59/59 sampled passages resolved |
 

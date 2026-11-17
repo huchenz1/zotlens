@@ -121,7 +121,7 @@ Design choices worth knowing:
   locate page numbers on demand, for the passages actually shown.
 - **Read-only on your library.** `zotero.sqlite` is copied to a snapshot before reading, because Zotero may hold
   a lock on it.
-- **Duplicates merged** by DOI → arXiv id → normalised title (560 duplicates across 2,548 raw items).
+- **Duplicates merged** by DOI → arXiv id → normalised title (561 duplicates across 2,556 raw items).
 - **Two-stage retrieval on purpose**: bi-encoders are cheap enough to score the whole library, cross-encoders are
   accurate but must be run per candidate — so recall 200, rerank ~20, show 5.
 
