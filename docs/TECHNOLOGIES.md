@@ -59,11 +59,17 @@ dropping BM25 entirely (R@10 0.62) both lose to equal weights (0.68).
 | **Evaluation harness** | Questions are generated from real passages (half English, half Chinese) without reusing titles, so keyword search cannot cheat; six retrieval designs are compared on Recall@1/5/10 and MRR. | `evaluate.py` |
 | **Retry / backoff** | Provider rate limits (HTTP 429, per-model token quota) are retried 8 times with exponential backoff up to 60 s, honouring `Retry-After`; an interrupted index build resumes from the last checkpoint. | `models._embed_batch` |
 
-## Cost of the whole library (measured)
+## Cost of the whole library (measured 2026-11-17)
 
 | Item | Value |
 |---|---|
-| Passages embedded | 68,090 (≈ 36.7 M tokens) |
+| Passages embedded | 68,097 (~36.7 M tokens at $0.01/M) |
 | Full index build | **$0.41**, ~25 min at 4 concurrent requests |
-| Rerank per query (20 candidates, 7.6k tokens) | **$0.00015** |
-| 1,000 papers, one-off | ≈ $0.21 |
+| Incremental update (1 new paper, 7 passages) | under $0.01 |
+| Embedding + rerank per search (7.6k rerank tokens at $0.02/M) | **$0.00015** |
+| One full answer (5 tool calls, 21.3k prompt / 1.9k completion on `deepseek-v4-flash`) | **$0.0043** off-peak, $0.0086 peak |
+| 1,000 papers, one-off embedding | ≈ $0.21 |
+| Total spent on this project so far (2 builds + 100-question eval + tests) | **$0.58** |
+
+Retrieval is cheap; the generation call is what dominates a grounded answer, which is why the
+pipeline spends its budget on 20 well-chosen passages instead of 100.

@@ -125,23 +125,34 @@ Design choices worth knowing:
 - **Two-stage retrieval on purpose**: bi-encoders are cheap enough to score the whole library, cross-encoders are
   accurate but must be run per candidate — so recall 200, rerank ~20, show 5.
 
-## Cost and latency (measured on 1,995 papers / 68,097 chunks)
+## Cost and latency (measured 2026-11-17, 1,995 papers / 68,097 chunks)
 
-| | Cloud (`qwen3-embedding-8b` + `cohere/rerank-5-fast`) | Local (Qwen3-0.6B pair) |
+Rates used below (list prices, no markup on OpenRouter):
+
+| Component | Model | Rate |
 |---|---|---|
-| Full index build | **$0.41** (~36.7 M tokens), ~25 min at 4 workers | $0, ~60 min on M5 Pro (MPS) |
-| Incremental update | under $0.01 | seconds |
-| Rerank per query (20 candidates, 7.6k tokens) | **$0.00015** | $0 |
+| Embedding | `qwen/qwen3-embedding-8b` (`dimensions=1024`) | $0.01 / M tokens |
+| Reranking | `cohere/rerank-5-fast` | $0.02 / M tokens (7,629 tokens per query ≈ $0.00015) |
+| Chat | `deepseek-v4-flash` | $0.15 in / $0.60 out per M (off-peak), $0.30 / $1.20 (peak); cache hit $0.003 |
+
+What that means in practice:
+
+| Operation | Cloud profile | Local profile |
+|---|---|---|
+| Full index build (68,097 passages, ~36.7 M tokens) | **$0.41**, ~25 min at 4 workers | $0, ~60 min on M5 Pro (MPS) |
+| Incremental update (1 new paper) | under $0.01, 25 s | seconds |
+| One search (embed + rerank 20 candidates) | **$0.00015** | $0 |
+| One full answer — 5 tool calls, 10 citations, 21.3k in / 1.9k out | **$0.005** off-peak, $0.009 peak | $0 (chat still needs an API) |
+| One short answer, no retrieval | ~$0.0004 | — |
 | Retrieval latency | 2.5–6 s | ~1.5 s |
 | Offline | no | yes |
 
-Indexing is latency-bound, so `ZOTLENS_EMBED_API_WORKERS` matters: 1 → 4 → 8 workers measured 40 / 60 / 85
-chunks/s. Eight workers also hits the provider's per-model token quota (HTTP 429), which is why the default is 4
-and the retry path backs off up to 60 s. A build interrupted by a rate limit resumes from the last checkpoint
-without re-embedding finished chunks.
+**Where the money actually goes:** indexing is a one-off $0.41; after that the chat model dominates
+(~85% of a grounded answer), and retrieval is rounding error. The whole project — 2 full index builds,
+the 100-question evaluation and a few hundred test answers — has cost **$0.58** so far.
 
-Reranker choice matters more than it looks: `cohere/rerank-5-fast` bills per token ($0.02/M → $0.00015/query),
-while `cohere/rerank-4-fast` bills per search ($0.002) — 13× more for the same 20 candidates.
+Billing shape matters more than the rate: `cohere/rerank-4-fast` charges **per search** ($0.002) whatever the size,
+so the same 20 candidates cost 13× more than `rerank-5-fast` charges per token.
 
 ## Evaluation
 
